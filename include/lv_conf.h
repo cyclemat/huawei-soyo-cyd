@@ -21,10 +21,11 @@
 #define LV_USE_MEM_MONITOR 0
 #define LV_BUILD_EXAMPLES 0
 
-// Schriften (nur ASCII, daher keine Umlaute auf dem Display)
+// Montserrat nur als Ersatz fuer LV_SYMBOL-Zeichen; die Texte nutzen Inter (src/fonts, mit Umlauten)
 #define LV_FONT_MONTSERRAT_14 1
 #define LV_FONT_MONTSERRAT_20 1
-#define LV_FONT_MONTSERRAT_32 1
+#define LV_FONT_MONTSERRAT_16 1
+#define LV_FONT_MONTSERRAT_28 1
 #define LV_FONT_DEFAULT &lv_font_montserrat_14
 
 #define LV_USE_THEME_DEFAULT 1
