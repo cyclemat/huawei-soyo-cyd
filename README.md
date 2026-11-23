@@ -42,7 +42,7 @@ Eine Firmware für das günstige **ESP32-2432S028R** („Cheap Yellow Display“
 | --- | --- | --- |
 | ESP32-2432S028R („Cheap Yellow Display“, 2,8″) | Regler mit Display | [bei Amazon](https://link.amazon/B00jjmvuF) |
 | CAN-Transceiver SN65HVD230 (3,3 V) | Huawei-Netzteile | [bei Amazon](https://link.amazon/B02DRQBV8) |
-| RS485-Wandler mit automatischer Senderichtung | SoyoSource-Wechselrichter | *Link folgt* |
+| RS485-Wandler mit automatischer Senderichtung | SoyoSource-Wechselrichter | [bei Amazon](https://link.amazon/B092okQsP) |
 | Shelly-Energiezähler am Netzanschluss | Netzmessung | oder ein anderer Zähler per MQTT |
 
 Wichtig: Für CAN einen **3,3-V-Transceiver** wie den SN65HVD230 nehmen, **kein MCP2515**-Modul – der CAN-Controller steckt schon im ESP32.

@@ -42,7 +42,7 @@ Firmware for the low-cost **ESP32-2432S028R** ("Cheap Yellow Display", 2.8″ to
 | --- | --- | --- |
 | ESP32-2432S028R ("Cheap Yellow Display", 2.8″) | controller with display | [on Amazon](https://link.amazon/B00jjmvuF) |
 | CAN transceiver SN65HVD230 (3.3 V) | Huawei rectifiers | [on Amazon](https://link.amazon/B02DRQBV8) |
-| RS485 converter with automatic direction | SoyoSource inverters | *link to follow* |
+| RS485 converter with automatic direction | SoyoSource inverters | [on Amazon](https://link.amazon/B092okQsP) |
 | Shelly energy meter at the grid connection | grid meter | or another meter via MQTT |
 
 Important: for CAN use a **3.3 V transceiver** such as the SN65HVD230, **not an MCP2515** module – the CAN controller is already inside the ESP32.
