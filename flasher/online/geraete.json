@@ -1,0 +1,11 @@
+{
+ "devices": [
+  {
+   "id": "cyd",
+   "name": "Huawei · Soyo – Cheap Yellow Display",
+   "desc": "ESP32-2432S028R (2,8″ Touch) – Nulleinspeisung mit SoyoSource und Huawei R48xx",
+   "chip": "ESP32",
+   "src": []
+  }
+ ]
+}

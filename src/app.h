@@ -7,7 +7,7 @@
 #include "dispatch.h"
 #include "i18n.h"
 
-#define FW_VERSION "0.2.0-beta"
+#define FW_VERSION "0.3.0-beta"
 
 struct Config {
     char ssid[33]{}, password[65]{}, meter[64]{};
@@ -41,6 +41,14 @@ struct Config {
     char mqttBase[33] = "huaweisoyo";
     int haDiscovery = 1;
     int lang = 0;                 // 0 = Deutsch, 1 = English
+    int screenOffMin = 60;        // Display nach so vielen Minuten ohne Beruehrung aus, 0 = nie
+    int ldrWake = 1;              // Display bei starkem Helligkeitsanstieg (Lichtsensor) wieder an
+    int sdLog = 1;                // Log auf der SD-Karte, wenn eine steckt
+    int ldrRise = 40;             // Aufwachen, wenn der Lichtsensor um so viel % heller misst (10-90)
+    // Shelly-Schalter vor jedem Huawei (optional, leer = keiner): misst die Aufnahme und schaltet
+    // den Huawei ab, wenn sein CAN abreisst
+    char hwShelly[3][64]{};
+    int hwShellyCut = 1;          // bei CAN-Ausfall abschalten
 };
 
 // Huawei-Gleichrichter: Der CAN-Stromwert ist Ampere x (1024 / Nennstrom),
@@ -94,6 +102,7 @@ bool soyoIsOff();
 int maxCharge();
 bool saveConfig(const Config &c);
 String deviceSuffix();               // letzte 4 Stellen der MAC, z. B. "A1B2"
+void serviceOutputs();               // CAN lesen und Soyo/Huawei weiter versorgen, wenn loop() laenger blockiert
 
 // ui.cpp
 void displayBegin();                 // Display, Touch, Kalibrierung beim Start
@@ -101,7 +110,10 @@ void uiInit();
 void uiUpdate();
 void uiTick();
 void uiShowSettings();
+void splashProgress(int pct, const char *text);   // Startbild: Balken 0-100 % und Statuszeile (nullptr = Text lassen)
+void splashEnd();                                 // setup() fertig: Startbild darf weg
 void touchCalibrationRun();
+int ldrNow();                     // aktueller Messwert des Lichtsensors (0-4095, gross = dunkel)
 
 // web.cpp
 void webBegin();

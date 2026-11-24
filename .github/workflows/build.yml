@@ -1,0 +1,73 @@
+# Huawei · Soyo – Firmware auf GitHub bauen
+# Nur von Hand starten (Actions -> "Firmware bauen" -> Run workflow): Freiminuten des privaten Repos sind knapp,
+# gebaut wird nur auf Ansage. Ergebnis haengt als Artifact "huawei-soyo-cyd" am Lauf:
+#   firmware.bin      -> Update per USB an Adresse 0x10000 (Einstellungen bleiben erhalten)
+#   huawei-soyo-cyd-komplett.bin -> Komplett-Flash an Adresse 0x0 (Bootloader, Partitionen, Firmware; loescht Einstellungen)
+#   bootloader.bin, partitions.bin, boot_app0.bin -> Einzelteile fuer esptool
+name: Firmware bauen
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: CYD (ESP32-2432S028R)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: PlatformIO installieren
+        run: pip install platformio
+
+      - name: Cache (Plattform, Pakete)
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.platformio/platforms
+            ~/.platformio/packages
+            ~/.platformio/.cache
+          key: pio-cyd-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-cyd-
+
+      - name: Bauen
+        run: |
+          pio --version
+          pio run -e cyd
+          ls -l .pio/build/cyd/*.bin
+
+      - name: Komplettdatei zusammenstellen
+        run: |
+          set -e
+          OUT=.pio/build/cyd
+          VER=$(sed -n 's/.*FW_VERSION "\([^"]*\)".*/\1/p' src/app.h)
+          APP0=$(find ~/.platformio/packages -path '*/tools/partitions/boot_app0.bin' | head -1)
+          mkdir -p dist
+          cp "$OUT/firmware.bin" "$OUT/bootloader.bin" "$OUT/partitions.bin" dist/
+          cp "$APP0" dist/boot_app0.bin
+          # klassischer ESP32: Bootloader 0x1000, Partitionen 0x8000, boot_app0 0xE000, Firmware 0x10000
+          pio pkg exec -p tool-esptoolpy -- esptool.py --chip esp32 merge_bin -o dist/huawei-soyo-cyd-komplett.bin \
+            --flash_mode dio --flash_size 4MB \
+            0x1000 "$OUT/bootloader.bin" 0x8000 "$OUT/partitions.bin" 0xE000 "$APP0" 0x10000 "$OUT/firmware.bin"
+          {
+            echo "Version $VER aus Commit ${GITHUB_SHA::7}"
+            echo
+            echo "| Datei | Groesse |"
+            echo "|---|---|"
+            for f in dist/*.bin; do echo "| $(basename "$f") | $(( $(stat -c %s "$f") / 1024 )) KB |"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+          ls -l dist
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: huawei-soyo-cyd
+          path: dist/
+          retention-days: 30

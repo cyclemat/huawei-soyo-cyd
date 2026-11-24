@@ -4,9 +4,12 @@
 #include <HTTPClient.h>
 #include <cJSON.h>
 #include <driver/twai.h>
+#include <esp_log.h>
 #include <lvgl.h>
 #include "app.h"
 #include "devsetup.h"
+#include "sdlog.h"
+#include "hwplug.h"
 
 const RectifierModel rectifierModels[] = {
     {"Eigener Faktor / custom factor", 75},
@@ -104,11 +107,22 @@ void sendOutputs() {
     }
 }
 
+// Fuer Stellen, die loop() laenger aufhalten (z. B. Log-Download): CAN lesen, Sollwerte wie gewohnt alle 500 ms senden
+void receiveCan();
+void serviceOutputs() {
+    receiveCan();
+    if (millis() - lastTx >= 500) sendOutputs();
+}
+
 // Merkt sich im Flash, ob nach einem Neustart wieder Nulleinspeisung aktiv sein soll.
 // Geschrieben wird nur bei einer Aenderung, um den Flash zu schonen.
 bool autoZero = false;
 
 void stop(Mode next, bool remember) {
+    if (next != mode) {
+        const char *names[] = {T("Aus", "off"), T("Nulleinspeisung", "zero export"), T("Nur Laden", "charge only")};
+        sdlogEvent((String(T("Modus: ", "Mode: ")) + names[int(next)]).c_str());
+    }
     const bool zero = next == Mode::Zero;
     if (remember && zero != autoZero && prefs.putBool("autoZero", zero)) autoZero = zero;
     mode = next;
@@ -152,6 +166,7 @@ void receiveCan() {
             // Stattdessen Treiber ganz entfernen und spaeter neu starten.
             twai_driver_uninstall();
             canReady = false;
+            sdlogEvent(T("CAN: Bus-Off, Treiber wird neu gestartet", "CAN: bus-off, restarting driver"));
             canRetryAt = (millis() + 5000) | 1;
             return;
         }
@@ -375,7 +390,9 @@ void loadConfig() {
     const size_t stored = prefs.getBytesLength("config1");
     if (stored == sizeof(cfg)) {
         prefs.getBytes("config1", &cfg, sizeof(cfg));
-    } else if (stored == offsetof(Config, lang) || stored == offsetof(Config, meterSource) ||
+    } else if (stored == offsetof(Config, hwShelly) || stored == offsetof(Config, ldrRise) ||
+               stored == offsetof(Config, screenOffMin) || stored == offsetof(Config, lang) ||
+               stored == offsetof(Config, meterSource) ||
                stored == offsetof(Config, fallbackMode)) {
         // Aeltere Einstellungen: neue Felder behalten ihre Standardwerte.
         prefs.getBytes("config1", &cfg, stored);
@@ -391,6 +408,7 @@ void setup() {
     // SoyoSource-RS485 haengt am UART-Stecker P1 neben der USB-Buchse (TX = GPIO1).
     // Deshalb laeuft Serial mit 4800 Baud und es gibt keine Debug-Ausgaben.
     Serial.begin(4800, SERIAL_8N1);
+    esp_log_level_set("*", ESP_LOG_NONE);   // auch ESP-IDF-Meldungen nicht auf den Soyo-Bus schreiben
     const devsetup::Boot boot = devsetup::bootCheck();   // Mehrfach-Reset zaehlen
     prefs.begin("energy", false);
     loadConfig();
@@ -400,7 +418,22 @@ void setup() {
     uiUpdate();
     lv_timer_handler();
 
+    // Log auf der SD-Karte (eigener Task, nur wenn eingeschaltet und eine Karte steckt)
+    sdlogBegin();
+    {
+        const esp_reset_reason_t r = esp_reset_reason();
+        const char *why = r == ESP_RST_POWERON ? T("Einschalten", "power on")
+                        : r == ESP_RST_EXT ? T("Reset-Taste", "reset button")
+                        : r == ESP_RST_SW ? T("Neustart durch Firmware", "restart by firmware")
+                        : r == ESP_RST_PANIC ? T("Absturz", "crash")
+                        : r == ESP_RST_BROWNOUT ? T("Unterspannung", "brownout")
+                        : (r == ESP_RST_INT_WDT || r == ESP_RST_TASK_WDT || r == ESP_RST_WDT) ? "Watchdog"
+                        : T("anderer Grund", "other reason");
+        sdlogEvent((String(T("Start v", "Start v")) + FW_VERSION + " – " + why).c_str());
+    }
+
     if (cfg.huaweiCount) {
+        splashProgress(20, T("Verbinde mit Huawei...", "Connecting to Huawei..."));
         canReady = canInstall();
         if (!canReady) canRetryAt = (millis() + 5000) | 1;
     }
@@ -414,17 +447,23 @@ void setup() {
     WiFi.mode(WIFI_STA);
     WiFi.setSleep(false);  // kein WLAN-Energiesparen: Antworten kommen sonst verspaetet oder gar nicht
     if (cfg.ssid[0]) WiFi.begin(cfg.ssid, cfg.password);
+    splashProgress(35, cfg.ssid[0] ? T("Verbinde WLAN...", "Connecting Wi-Fi...") : T("Kein WLAN eingerichtet", "No Wi-Fi set up"));
     const uint32_t started = millis();
     while (cfg.ssid[0] && WiFi.status() != WL_CONNECTED && millis() - started < 12000) {
         if (millis() - lastTx >= 500) sendOutputs();
         receiveCan();
-        if (millis() - lastDraw >= 250) { lastDraw = millis(); uiUpdate(); }
+        if (millis() - lastDraw >= 250) {
+            lastDraw = millis();
+            uiUpdate();
+            splashProgress(35 + int((millis() - started) * 40 / 12000), nullptr);   // Balken waechst mit der Wartezeit
+        }
         lv_timer_handler();
         delay(20);
     }
     const bool connected = WiFi.status() == WL_CONNECTED;
     portal = !connected || boot.forceAp;
     if (portal) {
+        splashProgress(80, (String(T("Einrichtungs-WLAN ", "Setup Wi-Fi ")) + "HuaweiSoyo-" + deviceSuffix()).c_str());
         if (!connected) {
             // Heim-WLAN nicht staendig suchen lassen, sonst wechselt der Funkkanal und das
             // Setup-WLAN bricht ab. Neuer Versuch per Neustart (siehe loop).
@@ -438,7 +477,10 @@ void setup() {
         portalSince = millis();
         uiShowSettings();  // Einstellungen mit Setup-WLAN zeigen
     }
+    if (connected) splashProgress(80, (String(T("WLAN verbunden, ", "Wi-Fi connected, ")) + WiFi.localIP().toString()).c_str());
     webBegin();
+    // Uhrzeit fuer den Log (Mitteleuropa mit Sommerzeit)
+    if (connected) configTzTime("CET-1CEST,M3.5.0,M10.5.0/3", "pool.ntp.org", "time.google.com");
 
     readings = xQueueCreate(1, sizeof(Sample));
     if (readings && cfg.meterSource == 0) xTaskCreate(pollMeter, "shelly", 8192, nullptr, 1, nullptr);
@@ -446,6 +488,40 @@ void setup() {
     if (cfg.soyoMeter[0]) {
         soyoReadings = xQueueCreate(1, sizeof(Sample));
         if (soyoReadings) xTaskCreate(pollMeter, "shellySoyo", 8192, &soyoMeter, 1, nullptr);
+    }
+    hwPlugBegin();   // Shelly vor den Huawei, nur wenn eingetragen
+    splashProgress(100, T("Bereit", "Ready"));
+    splashEnd();
+}
+
+// Zustandswechsel als Ereignis in den SD-Log schreiben
+void logTransitions(bool meterLive, bool huaweiOK) {
+    static int lastMeter = -1, lastCan = -1, lastWifi = -1;
+    static const char *lastNotice = "";
+    if (notice != lastNotice) {   // Hinweise wie "Laden gestoppt: ..." ebenfalls protokollieren
+        if (notice[0]) sdlogEvent(notice);
+        lastNotice = notice;
+    }
+    const int wifi = WiFi.status() == WL_CONNECTED;
+    if (int(meterLive) != lastMeter) {
+        if (lastMeter >= 0 || meterLive) {
+            sdlogEvent(meterLive ? T("Netzmessung da", "grid reading available")
+                       : (String(T("Netzmessung fehlt: ", "grid reading missing: ")) +
+                          (cfg.meterSource == 0 ? meterErrorText(0) : "MQTT")).c_str());
+        }
+        lastMeter = meterLive;
+    }
+    if (cfg.huaweiCount && int(huaweiOK) != lastCan) {
+        if (lastCan >= 0 || huaweiOK) sdlogEvent(huaweiOK ? T("Huawei-CAN da", "Huawei CAN available") : T("Huawei-CAN fehlt", "Huawei CAN missing"));
+        lastCan = huaweiOK;
+    }
+    if (wifi != lastWifi) {
+        if (lastWifi >= 0 || wifi) {
+            sdlogEvent(wifi ? (String(T("WLAN verbunden, ", "Wi-Fi connected, ")) + WiFi.localIP().toString() + ", " +
+                               WiFi.RSSI() + " dBm").c_str()
+                            : T("WLAN getrennt", "Wi-Fi disconnected"));
+        }
+        lastWifi = wifi;
     }
 }
 
@@ -463,6 +539,7 @@ void loop() {
     // damit eine CAN-Stoerung die Einspeisung nicht blockiert.
     const bool ready = !rebootAt && meterOK();
     const bool huaweiOK = huaweiHealthy();
+    logTransitions(ready, huaweiOK);
     if (!ready && (manual || dispatch.soyo || dispatch.huawei)) {
         if (manual) notice = T("Laden gestoppt: Netzmessung fehlt", "Charging stopped: no grid reading");
         stop(mode);
@@ -485,14 +562,16 @@ void loop() {
         lastControlledSample = meter.time;
         const int previousSoyo = dispatch.soyo, previousHuawei = dispatch.huawei;
         // Soyo wird nur gesperrt, wenn der Huawei nachweislich noch Leistung aufnimmt
-        // (> 40 W AC). Ohne Huawei-Daten (NAN) oder ohne Huawei darf Soyo laufen.
+        // (> 40 W AC laut CAN oder laut Shelly vor dem Huawei). Ohne Huawei-Daten (NAN) oder
+        // ohne Huawei darf Soyo laufen.
         const float huaweiAc = huaweiPower(false);
-        const int maxSoyo = huaweiAc > 40 ? 0 : cfg.soyoCount * cfg.soyoUnit;
+        const int maxSoyo = huaweiAc > 40 || hwPlugDrawing() ? 0 : cfg.soyoCount * cfg.soyoUnit;
         dispatch.update(millis(), mode, ready, meter.watts, manual, maxSoyo,
                         soyoOff && huaweiOK ? maxCharge() : 0, cfg.reserve);
         if (previousSoyo != dispatch.soyo || previousHuawei != dispatch.huawei) sendOutputs();
     }
     if (millis() - lastTx >= 500) sendOutputs();
+    hwPlugLoop();
     if (redraw || millis() - lastDraw >= 250) {
         redraw = false;
         lastDraw = millis();

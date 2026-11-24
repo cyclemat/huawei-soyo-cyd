@@ -2,6 +2,8 @@
 #include <vector>
 #include "app.h"
 #include "devsetup.h"
+#include "sdlog.h"
+#include "hwplug.h"
 
 // ---------------------------------------------------------------- Ausgabe in Stuecken
 // Die Seite wird in kleinen Teilen gesendet, damit kein grosser Puffer im RAM liegt.
@@ -305,7 +307,25 @@ void pageSettings() {
           "step=\"0.1\" min=\"0\" max=\"58\"");
     field(p, T("Strom ohne CAN je Gerät in A", "Current without CAN per unit in A"), "fallbackAmps",
           dec1(cfg.fallbackAmps10), "number", "step=\"0.1\" min=\"0\" max=\"75\"");
-    p << "</div></div>";
+    p << "</div>";
+    p << "<h3>" << T("Shelly vor dem Huawei (optional)", "Shelly in front of the Huawei (optional)") << "</h3>";
+    for (int i = 0; i < 3; ++i) {
+        const String name = String("hwShelly") + i;
+        const String label = String(T("Shelly vor Huawei ", "Shelly in front of Huawei ")) + (i + 1) +
+                             T(": IP-Adresse", ": IP address");
+        field(p, label.c_str(), name.c_str(), cfg.hwShelly[i]);
+    }
+    toggle(p, T("Bei CAN-Ausfall abschalten", "Switch off when CAN fails"),
+           T("Schaltet einen Huawei per Shelly ab, wenn er 15 s keine CAN-Daten schickt oder 30 s über 100 W zieht, "
+             "obwohl er aus sein soll. Neuer Versuch nach 5 min und bei jedem Neustart. Der Soyo bleibt gesperrt, "
+             "solange ein Huawei laut Shelly über 40 W zieht. Felder leer = keine Shellys, dann passiert nichts. "
+             "Geeignet: Shelly mit Schalter, z. B. Plug, 1PM.",
+             "Switches a Huawei off via Shelly when it sends no CAN data for 15 s or draws over 100 W for 30 s while it "
+             "should be off. New attempt after 5 min and at every restart. The Soyo stays blocked while a Huawei draws "
+             "over 40 W according to its Shelly. Fields empty = no Shellys, then nothing happens. "
+             "Suitable: a Shelly with a switch, e.g. Plug, 1PM."),
+           "hwShellyCut", cfg.hwShellyCut != 0);
+    p << "</div>";
 
     // MQTT / Home Assistant
     p << "<div class=\"card\"><h2>MQTT / Home Assistant</h2><p class=\"hint\">"
@@ -339,8 +359,61 @@ void pageSettings() {
     option(p, 1, cfg.lang, "English");
     p << "</select></label></div>";
 
+    // Display und Log
+    p << "<div class=\"card\"><h2>" << T("Display und Log", "Display and log") << "</h2>";
+    field(p, T("Display aus nach (Minuten ohne Berührung, 0 = nie)", "Display off after (minutes without touch, 0 = never)"),
+          "screenOffMin", String(cfg.screenOffMin), "number", "min=\"0\" max=\"1440\"");
+    toggle(p, T("Bei hellem Licht wieder einschalten", "Switch on again with bright light"),
+           T("Der Lichtsensor weckt das Display bei einem starken Helligkeitsanstieg. Antippen weckt immer.",
+             "The light sensor wakes the display on a strong rise in brightness. A tap always wakes it."),
+           "ldrWake", cfg.ldrWake != 0);
+    field(p, T("Aufwachen ab Helligkeitsanstieg (%, 10–90)", "Wake at brightness rise (%, 10–90)"),
+          "ldrRise", String(cfg.ldrRise), "number", "min=\"10\" max=\"90\"");
+    p << "<p class=\"hint\">"
+      << T("Kleiner = empfindlicher. Ab Werk 40\xE2\x80\xAF%. Lichtsensor jetzt: ",
+           "Lower = more sensitive. Default 40\xE2\x80\xAF%. Light sensor now: ")
+      << "<b id=\"ldrNow\">–</b> "
+      << T("(großer Wert = dunkel; zum Wecken muss er um den eingestellten Anteil fallen)",
+           "(high value = dark; to wake, it must drop by the set share)")
+      << "</p>";
+    toggle(p, T("Log auf SD-Karte", "Log to SD card"),
+           T("Alle 10 s eine Zeile und alle Ereignisse, wenn eine microSD-Karte steckt. Ist sie voll, werden die "
+             "ältesten Dateien gelöscht.",
+             "One line every 10 s plus all events when a microSD card is inserted. When it is full, the oldest files "
+             "are deleted."),
+           "sdLog", cfg.sdLog != 0);
+    p << "</div>";
+
     p << "<div class=\"save\"><button class=\"p\">" << T("Speichern und neu starten", "Save and restart")
       << "</button></div></form>";
+
+    // Log-Dateien auf der SD-Karte
+    if (cfg.sdLog) {
+        const SdLogInfo sd = sdlogInfo();
+        p << "<div class=\"card\"><h2>" << T("Log-Dateien", "Log files") << "</h2>";
+        if (!sd.mounted) {
+            p << "<p class=\"hint\">" << T("Keine SD-Karte erkannt. Eine eingesteckte Karte (FAT32) wird innerhalb von "
+                                           "30 s erkannt.",
+                                           "No SD card detected. An inserted card (FAT32) is detected within 30 s.")
+              << "</p>";
+        } else {
+            p << "<p class=\"hint\">" << String(double(sd.freeBytes) / 1048576.0, 0) << " MB "
+              << T("frei von", "free of") << " " << String(double(sd.totalBytes) / 1048576.0, 0) << " MB · "
+              << T("aktuell", "current") << ": <code>" << sd.current << "</code></p>";
+            const auto files = sdlogFiles();
+            size_t shown = 0;
+            for (const auto &f : files) {
+                if (++shown > 30) break;
+                p << "<div class=\"net\"><a href=\"/logfile?f=" << f.name << "\">" << f.name << "</a><small>"
+                  << String(f.size / 1024) << " KB</small></div>";
+            }
+            if (files.size() > 30) p << "<p class=\"hint\">… " << int(files.size() - 30) << T(" weitere", " more") << "</p>";
+            p << "<form method=\"post\" action=\"/logdel\" onsubmit=\"return confirm('"
+              << T("Alle Log-Dateien außer der aktuellen löschen?", "Delete all log files except the current one?")
+              << "')\"><button class=\"d\">" << T("Alte Logs löschen", "Delete old logs") << "</button></form>";
+        }
+        p << "</div>";
+    }
 
     // Aktionen ausserhalb des Formulars
     p << "<div class=\"card\"><h2>" << T("Gerät", "Device") << "</h2><div class=\"row\">"
@@ -382,6 +455,7 @@ function w(v){return v==null?'–':Math.round(v)+nb+'W';}
 function live(){fetch('/api/status').then(r=>r.json()).then(d=>{
 $('#vGrid').textContent=d.grid==null?L.off:(d.grid>0?'+':'')+w(d.grid);$('#vSoyo').textContent=w(d.soyo);
 $('#vHuawei').textContent=w(d.huawei);$('#vMode').textContent=L.modes[d.mode]||d.mode;
+if($('#ldrNow'))$('#ldrNow').textContent=d.ldr;
 $('#chips').innerHTML=d.chips.map(c=>'<span class="chip '+(c[1]?'ok':'err')+'">'+c[0]+'</span>').join('');
 }).catch(()=>{});}
 scan(0);live();setInterval(live,2000);
@@ -442,11 +516,21 @@ void handleSave() {
     next.soyoPolarity = web.hasArg("soyoPolarityInv") ? -1 : 1;
     next.fallbackMode = web.hasArg("fallbackOn") ? 1 : 0;
     next.haDiscovery = web.hasArg("haDiscovery") ? 1 : 0;
+    next.ldrWake = web.hasArg("ldrWake") ? 1 : 0;
+    next.sdLog = web.hasArg("sdLog") ? 1 : 0;
+    next.hwShellyCut = web.hasArg("hwShellyCut") ? 1 : 0;
+    String hwHosts[3];
+    bool hwHostsOK = true;
+    for (int i = 0; i < 3; ++i) {
+        hwHosts[i] = web.arg(String("hwShelly") + i);
+        hwHosts[i].trim();
+        hwHostsOK &= validHost(hwHosts[i]);
+    }
 
     const char *error = nullptr;
     if (!ssid.length() || ssid.length() > 32 || password.length() > 64) {
         error = T("Bitte den Namen des Heim-WLANs eintragen.", "Please enter the home Wi-Fi name.");
-    } else if (!validHost(host) || !validHost(soyoHost) || !validHost(mqttHost)) {
+    } else if (!validHost(host) || !validHost(soyoHost) || !validHost(mqttHost) || !hwHostsOK) {
         error = T("Adressen dürfen nur Buchstaben, Ziffern, Punkt und Bindestrich enthalten.",
                   "Addresses may only contain letters, digits, dots and hyphens.");
     } else if (!readInt("meterSource", next.meterSource, 0, 1) || !readInt("channel", next.channel, -1, 2) ||
@@ -454,7 +538,9 @@ void handleSave() {
                !readInt("soyoCount", next.soyoCount, 0, 32) || !readInt("soyoUnit", next.soyoUnit, 0, 1200) ||
                !readInt("soyoChannel", next.soyoChannel, -1, 2) || !readInt("model", next.model, 0, modelCount - 1) ||
                !readInt("huaweiCount", next.huaweiCount, 0, 3) || !readInt("mqttPort", next.mqttPort, 1, 65535) ||
-               !readInt("lang", next.lang, 0, 1) || !readTenths("volts", next.volts10, 0, 580) ||
+               !readInt("lang", next.lang, 0, 1) || !readInt("screenOffMin", next.screenOffMin, 0, 1440) ||
+               !readInt("ldrRise", next.ldrRise, 10, 90) ||
+               !readTenths("volts", next.volts10, 0, 580) ||
                !readTenths("amps", next.amps10, 0, 750) || !readTenths("ampScale", next.ampScale10, 0, 500) ||
                !readTenths("fallbackVolts", next.fallbackVolts10, 0, 580) ||
                !readTenths("fallbackAmps", next.fallbackAmps10, 0, 750)) {
@@ -485,6 +571,7 @@ void handleSave() {
     if (password.length() || ssid != cfg.ssid) password.toCharArray(next.password, sizeof(next.password));
     host.toCharArray(next.meter, sizeof(next.meter));
     soyoHost.toCharArray(next.soyoMeter, sizeof(next.soyoMeter));
+    for (int i = 0; i < 3; ++i) hwHosts[i].toCharArray(next.hwShelly[i], sizeof(next.hwShelly[i]));
     mqttHost.toCharArray(next.mqttHost, sizeof(next.mqttHost));
     mqttUser.toCharArray(next.mqttUser, sizeof(next.mqttUser));
     if (mqttPass.length() || mqttHost != cfg.mqttHost) mqttPass.toCharArray(next.mqttPass, sizeof(next.mqttPass));
@@ -509,7 +596,8 @@ void handleStatus() {
     String j = String("{\"grid\":") + (gridValid ? String(meter.watts) : "null") +
                ",\"soyo\":" + (soyoValid ? String(soyoMeter.watts) : String(cfg.soyoCount ? dispatch.soyo : 0)) +
                ",\"huawei\":" + (isfinite(dc) ? String(int(dc)) : "null") + ",\"mode\":\"" +
-               (mode == Mode::Zero ? "zero" : mode == Mode::Manual ? "charge" : "off") + "\",\"chips\":[";
+               (mode == Mode::Zero ? "zero" : mode == Mode::Manual ? "charge" : "off") + "\",\"ldr\":" + ldrNow() +
+               ",\"chips\":[";
     const bool online = WiFi.status() == WL_CONNECTED;
     j += String("[\"") + T("WLAN", "Wi-Fi") + (online ? String(" ") + WiFi.RSSI() + " dBm" : String("")) + "\"," +
          (online ? "true" : "false") + "]";
@@ -518,6 +606,11 @@ void handleStatus() {
     else if (!gridValid) meterChip += String(": ") + T("kein Wert", "no value");
     j += String(",[\"") + meterChip + "\"," + (gridValid ? "true" : "false") + "]";
     if (cfg.huaweiCount) j += String(",[\"Huawei CAN\",") + (huaweiHealthy() ? "true" : "false") + "]";
+    for (int i = 0; i < 3; ++i) {
+        if (!hwPlugUsed(i)) continue;
+        const bool ok = hwPlug[i].valid && hwPlug[i].on && !hwPlug[i].cutAt && recent(hwPlug[i].time, 10000);
+        j += String(",[\"Huawei ") + (i + 1) + ": " + hwPlugText(i) + "\"," + (ok ? "true" : "false") + "]";
+    }
     if (cfg.mqttHost[0]) j += String(",[\"MQTT\",") + (mqttOnline ? "true" : "false") + "]";
     j += "]}";
     web.sendHeader("Cache-Control", "no-store");
@@ -601,15 +694,17 @@ void webBegin() {
         devsetup::logout();
         redirectHome();
     });
-    // Sprache: Weboberflaeche sofort, feste Texte am Display nach dem naechsten Neustart
+    // Sprache: Weboberflaeche sofort, feste Texte am Display nach dem naechsten Neustart.
+    // Auch vor der Anmeldung umschaltbar (Anmeldeseite), gespeichert wird aber nur angemeldet:
+    // sonst koennte jeder im Netz den Flash mit Schreibzugriffen beschaeftigen.
     web.on("/lang", HTTP_GET, [] {
         int lang;
-        if (readInt("l", lang, 0, 1) && lang != cfg.lang) {
-            Config next = cfg;
-            next.lang = lang;
-            if (saveConfig(next)) {
-                cfg.lang = lang;
-                uiLang = lang;
+        if (readInt("l", lang, 0, 1) && lang != uiLang) {
+            uiLang = lang;
+            if (devsetup::authed()) {
+                Config next = cfg;
+                next.lang = lang;
+                if (saveConfig(next)) cfg.lang = lang;
             }
         }
         redirectHome();
@@ -617,6 +712,16 @@ void webBegin() {
     web.on("/save", HTTP_POST, [] { if (guard()) handleSave(); });
     web.on("/scan", HTTP_GET, [] { if (guard()) handleScan(); });
     web.on("/api/status", HTTP_GET, [] { if (guard()) handleStatus(); });
+    web.on("/logfile", HTTP_GET, [] {
+        if (!guard()) return;
+        if (!sdlogSend(web.arg("f"))) web.send(404, "text/plain", T("Datei nicht gefunden", "File not found"));
+    });
+    web.on("/logdel", HTTP_POST, [] {
+        if (!guard()) return;
+        sdlogDeleteAll();
+        sdlogEvent(T("Alte Log-Dateien gelöscht", "Old log files deleted"));
+        redirectHome();
+    });
     web.on("/calibrate", HTTP_POST, [] {
         if (!guard()) return;
         calibrateRequested = true;

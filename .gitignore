@@ -1,4 +1,7 @@
 .pio/
+src/generated/
+# lokaler Web-Flasher: erzeugte Geraeteliste/Manifeste (tools/make_flasher.py)
+flasher/gen/
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch

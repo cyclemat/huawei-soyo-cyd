@@ -5,6 +5,8 @@
 #include "devsetup.h"
 #include "fonts/fonts.h"
 #include "fonts/icons.h"
+#include "hwplug.h"
+#include "generated/splash_jpg.h"
 
 // ---- Display ESP32-2432S028R (gleiche Einstellungen wie Simply Open Camper, sat_display.cpp) ----
 // Display ILI9341 an HSPI (SCK 14, MOSI 13, MISO 12, CS 15, DC 2), Licht GPIO 21.
@@ -69,7 +71,8 @@ public:
             c.pin_int = 36;
             c.bus_shared = false;
             c.offset_rotation = 0;
-            c.spi_host = SPI3_HOST;  // VSPI
+            // Software-SPI (Bus -1): der Hardware-Bus VSPI bleibt frei fuer die SD-Karte (18/19/23/5)
+            c.spi_host = -1;
             c.freq = 1000000;
             c.pin_sclk = 25;
             c.pin_mosi = 32;
@@ -83,9 +86,122 @@ public:
 };
 CydDisplay lcd;
 
+// ---- Display-Schlaf ----
+// Nach cfg.screenOffMin Minuten ohne Beruehrung geht die Beleuchtung aus. Wieder an: antippen (die erste
+// Beruehrung weckt nur und loest keine Taste aus) oder starker Helligkeitsanstieg am Lichtsensor (GPIO34,
+// wie Simple Open Camper: grosser Messwert = dunkel).
+#define LDR_PIN 34
+uint32_t lastTouchMs = 0, ldrAt = 0, offSince = 0;
+bool screenOff = false, swallowTouch = false;
+
+// ---- Startbild ----
+// assets/splash_cyd.jpg (tools/embed_splash.py) liegt im Flash und wird von LovyanGFX direkt gezeichnet.
+// Waehrend setup() laeuft, zeigt ein Balken mit Statuszeile den Fortschritt (splashProgress). Solange das
+// Bild steht, zeichnet LVGL nicht (flushDisplay) und Beruehrungen erreichen keine Taste. Nach splashEnd()
+// bleibt es noch bis SPLASH_MIN_MS nach dem Start bzw. kurz fuer "Bereit" stehen, Antippen beendet es
+// frueher. Danach wird der Hauptschirm komplett aufgebaut.
+const uint32_t SPLASH_MIN_MS = 2500;
+uint32_t splashUntil = 0;   // != 0: Startbild steht noch (fruehestes Ende)
+bool splashHold = false;    // setup() laeuft noch: nicht beenden
+// Balken und Textband im Bild (320x240)
+const int BAR_X = 52, BAR_Y = 201, BAR_W = 216, BAR_H = 6, TXT_Y0 = 213, TXT_Y1 = 238;
+
+// Balkenfarbe: Orange -> helle Mitte -> Blau, wie die Leiterbahnen im Bild
+uint16_t splashBarColor(int i) {
+    const int h = (BAR_W - 1) / 2;
+    int r, g, b;
+    if (i <= h) {
+        r = 255 + (250 - 255) * i / h;
+        g = 138 + (225 - 138) * i / h;
+        b = 26 + (195 - 26) * i / h;
+    } else {
+        const int j = i - h, n = BAR_W - 1 - h;
+        r = 250 + (47 - 250) * j / n;
+        g = 225 + (157 - 225) * j / n;
+        b = 195 + (255 - 195) * j / n;
+    }
+    return lcd.color565(r, g, b);
+}
+
+void splashProgress(int pct, const char *text) {
+    if (!splashUntil) return;
+    pct = constrain(pct, 0, 100);
+    const int n = BAR_W * pct / 100;
+    for (int i = 0; i < n; ++i) {
+        const bool edge = i == 0 || i == BAR_W - 1;   // abgerundete Enden
+        lcd.drawFastVLine(BAR_X + i, edge ? BAR_Y + 1 : BAR_Y, edge ? BAR_H - 2 : BAR_H, splashBarColor(i));
+    }
+    if (!text) return;
+    // Textband aus dem Bild wiederherstellen (Ausschnitt des JPEG), dann Text mittig
+    lcd.drawJpg(SPLASH_JPG, SPLASH_JPG_LEN, 0, TXT_Y0, 320, TXT_Y1 - TXT_Y0 + 1, 0, TXT_Y0);
+    lcd.setFont(&fonts::DejaVu12);
+    lcd.setTextDatum(textdatum_t::middle_center);
+    lcd.setTextColor(lcd.color565(220, 232, 246));
+    lcd.drawString(text, 160, (TXT_Y0 + TXT_Y1) / 2);
+}
+
+void splashEnd() {
+    if (!splashUntil) return;
+    splashHold = false;
+    const uint32_t now = millis();
+    if (int32_t(splashUntil - now) < 600) splashUntil = (now + 600) | 1;   // "Bereit" kurz zeigen
+}
+float ldrFast = -1, ldrBase = -1;
+
+void screenWake() {
+    if (!screenOff) return;
+    screenOff = false;
+    lcd.setBrightness(255);
+    lastTouchMs = millis();
+    if (lv_scr_act()) lv_obj_invalidate(lv_scr_act());
+}
+
+void screenLoop() {
+    const uint32_t now = millis();
+    if (!screenOff) {
+        if (cfg.screenOffMin > 0 && now - lastTouchMs > cfg.screenOffMin * 60000UL) {
+            screenOff = true;
+            offSince = now;
+            ldrFast = ldrBase = -1;
+            lcd.setBrightness(0);
+        }
+        return;
+    }
+    if (!cfg.ldrWake || now - ldrAt < 250) return;
+    ldrAt = now;
+    const float raw = analogRead(LDR_PIN);
+    ldrFast = ldrFast < 0 ? raw : ldrFast * 0.5f + raw * 0.5f;
+    if (now - offSince < 5000) {   // erst einschwingen lassen, dann Grundwert merken
+        ldrBase = ldrFast;
+        return;
+    }
+    // Deutlich heller als der langsame Grundwert (Licht an, Tuer auf, Sonne): Display an.
+    // cfg.ldrRise = noetiger Anstieg in % (kleiner = empfindlicher).
+    const int rise = constrain(cfg.ldrRise, 10, 90);
+    if (ldrFast < ldrBase * (100 - rise) / 100.0f && ldrBase - ldrFast > 40) {
+        screenWake();
+        return;
+    }
+    ldrBase = ldrBase * 0.98f + ldrFast * 0.02f;   // langsam nachfuehren (ca. 12 s)
+}
+
+int ldrNow() {
+    return analogRead(LDR_PIN);
+}
+
 void readTouch(lv_indev_drv_t *, lv_indev_data_t *data) {
     lgfx::touch_point_t point;
-    if (!rebootAt && lcd.getTouch(&point) > 0) {
+    const bool down = !rebootAt && !splashUntil && lcd.getTouch(&point) > 0;
+    if (down) {
+        lastTouchMs = millis();
+        if (screenOff) {
+            screenWake();
+            swallowTouch = true;   // diese Beruehrung nur zum Wecken
+        }
+    } else {
+        swallowTouch = false;
+    }
+    if (down && !swallowTouch) {
         data->point.x = constrain(point.x, 0, 319);
         data->point.y = constrain(point.y, 0, 239);
         data->state = LV_INDEV_STATE_PR;
@@ -108,6 +224,7 @@ void touchCalibrationLoad() {
 }
 
 void touchCalibrationRun() {
+    screenWake();   // aus der Weboberflaeche ausgeloest, waehrend das Display schlaeft
     uint16_t cal[8];
     lcd.fillScreen(TFT_BLACK);
     lcd.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -171,8 +288,11 @@ void touchCalibrationAtBoot() {
 
 enum Action {
     ActZero, ActManual, ActIdle, ActStart, ActStop, ActCancel,
-    ActMinus, ActPlus, ActReserveMinus, ActReservePlus, ActSlider, ActNav0, ActNav1, ActNav2
+    ActMinus, ActPlus, ActReserveMinus, ActReservePlus, ActSlider, ActHuaweiOpen, ActHuaweiClose,
+    ActNav0, ActNav1, ActNav2
 };
+
+bool huaweiOpen = false;   // Detailseite mit den Werten jedes Huawei
 
 bool redraw = true;
 const char *notice = "";
@@ -190,6 +310,7 @@ struct Ui {
     lv_obj_t *btnMode[3], *modeLabel[3], *modeGlyph[3], *barManual;
     lv_obj_t *charge, *chargeMax, *chargeSelect, *chargeValue, *chargeInfo, *slider, *chargeNotice;
     lv_obj_t *btnStart, *startLabel, *startHint, *barStart;
+    lv_obj_t *huawei, *hwSummary, *hwHead[3], *hwLine1[3], *hwLine2[3], *hwTile[3], *hwPlug[3], *hwNone;
 } ui{};
 
 // ---- kleine Helfer, die nur bei echter Aenderung neu zeichnen ----
@@ -356,6 +477,8 @@ void runAction(int action) {
         case ActNav0: showPage(0); break;
         case ActNav1: showPage(1); break;
         case ActNav2: showPage(2); break;
+        case ActHuaweiOpen: huaweiOpen = true; break;
+        case ActHuaweiClose: huaweiOpen = false; break;
     }
     redraw = true;
 }
@@ -389,6 +512,10 @@ void onEvent(lv_event_t *e) {
         }
         return;
     }
+    if (action == ActHuaweiClose) {
+        if (code == LV_EVENT_PRESSED) runAction(action);
+        return;
+    }
     if (action >= ActNav0) {
         if (code == LV_EVENT_PRESSED) runAction(action);   // Seitenwechsel ohne Verzoegerung
         return;
@@ -398,6 +525,16 @@ void onEvent(lv_event_t *e) {
 
 // Fortschritt der Halte-Tasten (Nur Laden 1,2 s, Start 3 s)
 void uiTick() {
+    if (splashUntil) {
+        if (splashHold) return;   // setup() laeuft noch
+        lgfx::touch_point_t point;
+        if (int32_t(millis() - splashUntil) < 0 && lcd.getTouch(&point) == 0) return;
+        splashUntil = 0;
+        lastTouchMs = millis();
+        swallowTouch = true;                 // die Beruehrung beendet nur das Startbild
+        lv_obj_invalidate(lv_scr_act());     // Hauptschirm jetzt komplett zeichnen
+    }
+    screenLoop();
     if (!hold.obj || hold.fired) return;
     const uint32_t need = hold.action == ActManual ? 1200 : 3000;
     const uint32_t elapsed = millis() - hold.start;
@@ -414,6 +551,10 @@ static lv_disp_draw_buf_t drawBuffer;
 static lv_color_t pixels[320 * 20];
 
 void flushDisplay(lv_disp_drv_t *driver, const lv_area_t *area, lv_color_t *colors) {
+    if (splashUntil) {   // Startbild steht: nichts zeichnen, LVGL haelt den Schirm fuer fertig
+        lv_disp_flush_ready(driver);
+        return;
+    }
     const uint32_t w = area->x2 - area->x1 + 1, h = area->y2 - area->y1 + 1;
     lcd.startWrite();
     lcd.setAddrWindow(area->x1, area->y1, w, h);
@@ -430,8 +571,16 @@ void displayBegin() {
     lcd.init();
     lcd.setRotation(DISPLAY_ROTATION);
     lcd.setBrightness(255);
+    lastTouchMs = millis();
+    analogRead(LDR_PIN);                               // richtet den Pin als Analogeingang ein
+    analogSetPinAttenuation(LDR_PIN, ADC_0db);         // empfindlichster Bereich (der LDR liefert wenig Spannung)
     touchCalibrationLoad();
     touchCalibrationAtBoot();
+    if (SPLASH_JPG_LEN && lcd.drawJpg(SPLASH_JPG, SPLASH_JPG_LEN, 0, 0)) {
+        splashUntil = (millis() + SPLASH_MIN_MS) | 1;
+        splashHold = true;
+        splashProgress(5, "v" FW_VERSION);
+    }
 }
 
 // ---- Seiten ----
@@ -495,8 +644,8 @@ void buildNav(lv_obj_t *screen) {
     }
 }
 
-void buildValueTile(lv_obj_t *parent, int x, const char *icon, lv_color_t color, const char *name,
-                    lv_obj_t *&value, lv_obj_t *&tag, lv_obj_t *&fill) {
+lv_obj_t *buildValueTile(lv_obj_t *parent, int x, const char *icon, lv_color_t color, const char *name,
+                         lv_obj_t *&value, lv_obj_t *&tag, lv_obj_t *&fill) {
     lv_obj_t *tile = makeTile(parent, x, 6, 148, 108);
     fill = lv_obj_create(tile);
     plain(fill);
@@ -519,13 +668,17 @@ void buildValueTile(lv_obj_t *parent, int x, const char *icon, lv_color_t color,
     makeLabel(row, F_BODY, C_TEXT2, "W");
     lv_obj_t *label = makeLabel(tile, F_SMALL, C_TEXT2, name);
     lv_obj_set_pos(label, 12, 84);
+    return tile;
 }
 
 void buildHome(lv_obj_t *p) {
     buildValueTile(p, 8, ICON_LIGHTNING, C_AMBER, T("Einspeisung Soyo", "Soyo feed-in"),
                    ui.soyoValue, ui.soyoTag, ui.soyoFill);
-    buildValueTile(p, 164, ICON_BATTERY, C_GREEN, T("Ladung Huawei", "Huawei charging"),
-                   ui.huaweiValue, ui.huaweiTag, ui.huaweiFill);
+    lv_obj_t *huaweiTile = buildValueTile(p, 164, ICON_BATTERY, C_GREEN, T("Ladung Huawei", "Huawei charging"),
+                                          ui.huaweiValue, ui.huaweiTag, ui.huaweiFill);
+    // Antippen: Detailseite mit den gemeldeten Werten jedes Netzteils
+    lv_obj_add_flag(huaweiTile, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(huaweiTile, onEvent, LV_EVENT_ALL, (void *)(intptr_t)ActHuaweiOpen);
     lv_obj_t *grid = makeTile(p, 8, 120, 304, 46);
     ui.gridIcon = makeLabel(grid, F_ICON, C_TEXT2, ICON_PLUG);
     lv_obj_align(ui.gridIcon, LV_ALIGN_LEFT_MID, 12, 0);
@@ -635,6 +788,88 @@ void buildCharge(lv_obj_t *screen) {
     makeTextButton(ui.charge, 164, 178, 148, 56, C_RED, C_INK, ICON_CLOSE, T("STOPP", "STOP"), ActStop);
 }
 
+// ---- Detailseite Huawei ----
+void buildHuawei(lv_obj_t *screen) {
+    ui.huawei = lv_obj_create(screen);
+    plain(ui.huawei);
+    lv_obj_add_flag(ui.huawei, LV_OBJ_FLAG_CLICKABLE);   // Beruehrungen nicht an die Seite darunter
+    lv_obj_set_pos(ui.huawei, 0, 0);
+    lv_obj_set_size(ui.huawei, 320, 240);
+    lv_obj_set_style_bg_color(ui.huawei, C_BG, 0);
+    lv_obj_set_style_bg_opa(ui.huawei, LV_OPA_COVER, 0);
+    lv_obj_add_flag(ui.huawei, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_t *icon = makeLabel(ui.huawei, F_ICON, C_GREEN, ICON_BATTERY);
+    lv_obj_set_pos(icon, 12, 12);
+    lv_obj_t *title = makeLabel(ui.huawei, F_TITLE, C_TEXT, "Huawei");
+    lv_obj_set_pos(title, 42, 8);
+    ui.hwSummary = makeLabel(ui.huawei, F_SMALL, C_TEXT2, "");
+    lv_obj_set_pos(ui.hwSummary, 13, 40);
+    makeTextButton(ui.huawei, 196, 8, 116, 40, C_FIELD, C_TEXT, ICON_CLOSE, T("Zurück", "Back"), ActHuaweiClose, F_SMALL);
+
+    for (int i = 0; i < 3; ++i) {
+        ui.hwTile[i] = makeTile(ui.huawei, 8, 64 + i * 59, 304, 55);
+        ui.hwHead[i] = makeLabel(ui.hwTile[i], F_SMALL, C_TEXT, "");
+        lv_obj_set_pos(ui.hwHead[i], 12, 2);
+        ui.hwLine1[i] = makeLabel(ui.hwTile[i], F_SMALL, C_TEXT, "");
+        lv_obj_set_pos(ui.hwLine1[i], 12, 18);
+        ui.hwLine2[i] = makeLabel(ui.hwTile[i], F_SMALL, C_TEXT2, "");
+        lv_obj_set_pos(ui.hwLine2[i], 12, 34);
+        ui.hwPlug[i] = makeLabel(ui.hwTile[i], F_SMALL, C_TEXT2, "");   // Shelly vor dem Huawei (optional)
+        lv_obj_align(ui.hwPlug[i], LV_ALIGN_TOP_RIGHT, -10, 2);
+    }
+    ui.hwNone = makeLabel(ui.huawei, F_BODY, C_TEXT2, T("Kein Huawei eingetragen.\nWeboberfläche → Huawei",
+                                                       "No Huawei configured.\nWeb interface → Huawei"));
+    lv_obj_set_pos(ui.hwNone, 14, 80);
+}
+
+// Zahl mit Komma (Deutsch) bzw. Punkt (Englisch)
+String decimal(float v, int digits) {
+    String s(v, digits);
+    if (!uiLang) s.replace('.', ',');
+    return s;
+}
+
+void updateHuawei() {
+    setVisible(ui.huawei, huaweiOpen);
+    if (!huaweiOpen) return;
+    char text[96];
+    const int count = cfg.huaweiCount;
+    setVisible(ui.hwNone, count == 0);
+    if (count) {
+        snprintf(text, sizeof(text), "%s %d" NNBSP "W  ·  %s %s" NNBSP "V  ·  %s %s" NNBSP "A",
+                 T("Soll", "Set"), dispatch.huawei, T("Ladespannung", "voltage"), decimal(cfg.volts10 / 10.0f, 1).c_str(),
+                 T("max.", "max."), decimal(cfg.amps10 / 10.0f, 1).c_str());
+    } else {
+        text[0] = 0;
+    }
+    setText(ui.hwSummary, text);
+    for (int i = 0; i < 3; ++i) {
+        setVisible(ui.hwTile[i], i < count);
+        if (i >= count) continue;
+        const Rectifier &r = rectifier[i];
+        const bool live = recent(r.acAt, 3000);
+        snprintf(text, sizeof(text), "Huawei %d  ·  %s", i + 1,
+                 live ? T("verbunden", "connected") : T("keine Daten", "no data"));
+        setText(ui.hwHead[i], text);
+        setTextColor(ui.hwHead[i], live ? C_GREEN : C_RED);
+        setText(ui.hwPlug[i], hwPlugText(i).c_str());
+        setTextColor(ui.hwPlug[i], hwPlug[i].cutAt ? C_RED : C_TEXT2);
+        if (live) {
+            snprintf(text, sizeof(text), "%s" NNBSP "V  ·  %s" NNBSP "A  ·  DC %d" NNBSP "W",
+                     decimal(r.outV, 2).c_str(), decimal(r.outA, 1).c_str(), int(lroundf(r.dc)));
+            setText(ui.hwLine1[i], text);
+            snprintf(text, sizeof(text), "AC %d" NNBSP "W  ·  %s" NNBSP "V  ·  %s" NNBSP "°C  ·  %s" NNBSP "%%",
+                     int(lroundf(r.ac)), decimal(r.inV, 0).c_str(), decimal(r.temp, 0).c_str(),
+                     decimal(r.eff * 100, 1).c_str());
+            setText(ui.hwLine2[i], text);
+        } else {
+            setText(ui.hwLine1[i], T("Antwortet nicht über CAN", "Not answering over CAN"));
+            setText(ui.hwLine2[i], "");
+        }
+    }
+}
+
 void uiInit() {
     lv_init();
     lv_disp_draw_buf_init(&drawBuffer, pixels, nullptr, sizeof(pixels) / sizeof(pixels[0]));
@@ -662,6 +897,7 @@ void uiInit() {
     buildModes(ui.pages[2]);
     buildNav(screen);
     buildCharge(screen);
+    buildHuawei(screen);
     showPage(0);
 }
 
@@ -773,6 +1009,8 @@ void uiUpdate() {
         setTextColor(ui.modeLabel[i], active ? C_INK : C_TEXT);
         setTextColor(ui.modeGlyph[i], active ? C_INK : C_TEXT);
     }
+
+    updateHuawei();
 
     // Nur Laden
     if (chargeOpen && mode != Mode::Manual) chargeOpen = false;  // z. B. nach Speichern im Web

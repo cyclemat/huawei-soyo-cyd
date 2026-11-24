@@ -2,6 +2,7 @@
 #include <PubSubClient.h>
 #include <cJSON.h>
 #include "app.h"
+#include "hwplug.h"
 
 // ============================================================================
 // MQTT: Netzwert aus einem Abo (JSONPath) und Werte fuer Home Assistant
@@ -130,6 +131,12 @@ void publishDiscovery() {
             snprintf(name, sizeof(name), "Huawei %d %s", i, label[k]);
             publishSensor({key, name, unit[k], cls[k], k == 6 ? "mdi:percent" : nullptr});
         }
+        if (hwPlugUsed(i - 1)) {   // Shelly vor dem Huawei
+            char key[12], name[40];
+            snprintf(key, sizeof(key), "h%d_plug", i);
+            snprintf(name, sizeof(name), "Huawei %d %s", i, T("Aufnahme Shelly", "input power Shelly"));
+            publishSensor({key, name, "W", "power", "mdi:power-plug"});
+        }
     }
 }
 
@@ -160,6 +167,11 @@ void publishState() {
                 p + "v\":" + jsonNumber(r.outV, live, 2) + p + "a\":" + jsonNumber(r.outA, live, 2) +
                 p + "vin\":" + jsonNumber(r.inV, live, 1) + p + "temp\":" + jsonNumber(r.temp, live, 1) +
                 p + "eff\":" + jsonNumber(r.eff * 100, live, 1);
+        if (hwPlugUsed(i)) {
+            const auto &plug = hwPlug[i];
+            const bool plugLive = plug.valid && recent(plug.time, 10000);
+            json += p + "plug\":" + jsonNumber(plugLive ? (plug.on ? plug.watts : 0) : 0, plugLive);
+        }
     }
     json += "}";
     mqtt.publish(topicOf("state").c_str(), json.c_str());
