@@ -1,0 +1,1 @@
+huawei-soyo-cyd.bin 0.3.0-beta (4a6b544)
