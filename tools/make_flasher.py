@@ -2,6 +2,7 @@
 """Erzeugt Geraeteliste und Manifeste fuer den Web-Flasher (flasher/index.html, ESP Web Tools) – wie bei Simple Open Camper.
 
 Quellen:
+  release-en – wie release, aber Sprache ab Werk Englisch (huawei-soyo-cyd-en.bin)
   release  – fertige Firmware aus release/ (huawei-soyo-cyd.bin komplett, ota/huawei-soyo-cyd.bin nur Firmware,
              Stand in release/versionen.txt) – die liegt im Repo und damit auch im Online-Flasher (GitHub Pages)
   lokal    – hier gebaute Firmware aus .pio/build/cyd (nur im lokalen Flasher, flasher.bat)
@@ -25,6 +26,7 @@ GEN = os.path.join(ROOT, 'flasher', 'gen')
 ONLINE = os.path.join(ROOT, 'flasher', 'online')
 REL = os.path.join(ROOT, 'release')
 BUILD = os.path.join(ROOT, '.pio', 'build', 'cyd')
+BUILD_EN = os.path.join(ROOT, '.pio', 'build', 'cyd-en')   # dieselbe Firmware, Sprache ab Werk Englisch
 NAME = 'huawei-soyo-cyd'
 DEVICE = {'id': 'cyd', 'name': 'Huawei · Soyo – Cheap Yellow Display',
           'desc': 'ESP32-2432S028R (2,8″ Touch) – Nulleinspeisung mit SoyoSource und Huawei R48xx', 'chip': 'ESP32'}
@@ -82,16 +84,19 @@ def build(outdir, with_local):
     up = '../../../'   # von flasher/<sub>/m/ zum Projektordner
     boot_part = [(up + 'flasher/%s/boot_app0.bin' % sub, OTADATA_OFFSET)] if have_boot else []
     dev = dict(DEVICE, src=[])
-    full, ota = os.path.join(REL, NAME + '.bin'), os.path.join(REL, 'ota', NAME + '.bin')
-    if os.path.exists(full):
+    for key, label, suffix in (('release', 'Aktuelle Version (Deutsch)', ''), ('release-en', 'Current version (English)', '-en')):
+        full, ota = os.path.join(REL, NAME + suffix + '.bin'), os.path.join(REL, 'ota', NAME + suffix + '.bin')
+        if not os.path.exists(full):
+            continue
         v = release_version()
-        s = {'key': 'release', 'label': 'Aktuelle Version', 'version': v}
-        mk = 'm/cyd-release-komplett.json'
-        json.dump(manifest(DEVICE['name'], v, [(up + 'release/' + NAME + '.bin', 0)], True), open(os.path.join(outdir, mk), 'w'))
+        s = {'key': key, 'label': label, 'version': v}
+        mk = 'm/cyd-%s-komplett.json' % key
+        json.dump(manifest(DEVICE['name'], v, [(up + 'release/' + NAME + suffix + '.bin', 0)], True),
+                  open(os.path.join(outdir, mk), 'w'))
         s['komplett'] = mk
         if os.path.exists(ota):
-            mk = 'm/cyd-release-update.json'
-            json.dump(manifest(DEVICE['name'], v, boot_part + [(up + 'release/ota/' + NAME + '.bin', APP_OFFSET)], False),
+            mk = 'm/cyd-%s-update.json' % key
+            json.dump(manifest(DEVICE['name'], v, boot_part + [(up + 'release/ota/' + NAME + suffix + '.bin', APP_OFFSET)], False),
                       open(os.path.join(outdir, mk), 'w'))
             s['update'] = mk
         dev['src'].append(s)

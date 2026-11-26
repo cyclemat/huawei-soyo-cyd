@@ -37,6 +37,12 @@ def main():
     app = os.path.join(mf.BUILD, 'firmware.bin')
     parts = [('0x1000', os.path.join(mf.BUILD, 'bootloader.bin')), ('0x8000', os.path.join(mf.BUILD, 'partitions.bin')),
              ('0xE000', mf.BOOT_APP0), ('0x10000', app)]
+    app_en = os.path.join(mf.BUILD_EN, 'firmware.bin')   # Sprache ab Werk Englisch (pio run -e cyd-en), optional
+    parts_en = [('0x1000', os.path.join(mf.BUILD_EN, 'bootloader.bin')), ('0x8000', os.path.join(mf.BUILD_EN, 'partitions.bin')),
+                ('0xE000', mf.BOOT_APP0), ('0x10000', app_en)]
+    have_en = all(os.path.exists(f) for _, f in parts_en)
+    if have_en and abs(os.path.getmtime(app_en) - os.path.getmtime(app)) > 3600:
+        print('WARNUNG: deutsche und englische Firmware sind nicht zusammen gebaut (mehr als 1 h Abstand).')
     missing = [f for _, f in parts if not os.path.exists(f)]
     if missing:
         print('Fehlt (erst bauen):', ', '.join(missing))
@@ -49,6 +55,16 @@ def main():
     shutil.copyfile(app, os.path.join(mf.REL, 'ota', mf.NAME + '.bin'))
     if not mf.merge(full, parts):
         sys.exit(1)
+    full_en = os.path.join(mf.REL, mf.NAME + '-en.bin')
+    if have_en:
+        shutil.copyfile(app_en, os.path.join(mf.REL, 'ota', mf.NAME + '-en.bin'))
+        if not mf.merge(full_en, parts_en):
+            sys.exit(1)
+    else:
+        print('Hinweis: keine englische Firmware gebaut (pio run -e cyd-en) – nur die deutsche wird abgelegt.')
+        for f in (full_en, os.path.join(mf.REL, 'ota', mf.NAME + '-en.bin')):
+            if os.path.exists(f):
+                os.remove(f)
     with open(os.path.join(mf.REL, 'versionen.txt'), 'w', encoding='utf-8', newline='\n') as fh:
         fh.write(f'{mf.NAME}.bin {ver} ({sha})\n')
 
@@ -66,6 +82,15 @@ def main():
          f'| ESP32-2432S028R (CYD) | {ver} ({sha}) | [huawei-soyo-cyd.bin](huawei-soyo-cyd.bin) ({kb(full)}) '
          f'| [ota/huawei-soyo-cyd.bin](ota/huawei-soyo-cyd.bin) ({kb(app)}) |', '',
          'Die Firmware hat kein Update ueber die Weboberflaeche (Partition `huge_app`, kein OTA).']
+    if have_en:
+        L += ['', '## English', '',
+              '**Easiest:** the [online flasher](https://cyclemat.github.io/huawei-soyo-cyd/flasher/) in the browser',
+              '(Chrome or Edge on a PC). The files ending in `-en` are the same firmware with **English as the factory',
+              'language**. The language can always be changed in the web interface (DE / EN at the top right, display',
+              'language under *Access*); a stored setting takes precedence over the factory language.', '',
+              '| Device | Version | Complete (USB, 0x0, erases settings) | Firmware only (USB, 0x10000) |', '|---|---|---|---|',
+              f'| ESP32-2432S028R (CYD) | {ver} ({sha}) | [huawei-soyo-cyd-en.bin](huawei-soyo-cyd-en.bin) ({kb(full_en)}) '
+              f'| [ota/huawei-soyo-cyd-en.bin](ota/huawei-soyo-cyd-en.bin) ({kb(app_en)}) |']
     with open(os.path.join(mf.REL, 'README.md'), 'w', encoding='utf-8', newline='\n') as fh:
         fh.write('\n'.join(L) + '\n')
     print('release/ aktualisiert:', kb(full), 'komplett,', kb(app), 'Firmware')

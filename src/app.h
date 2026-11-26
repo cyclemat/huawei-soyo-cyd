@@ -7,7 +7,13 @@
 #include "dispatch.h"
 #include "i18n.h"
 
-#define FW_VERSION "0.3.2-beta"
+#define FW_VERSION "0.3.3-beta"
+
+// Sprache ab Werk: 0 = Deutsch, 1 = English (Umgebung cyd-en baut mit -D DEFAULT_LANG=1).
+// Gilt nur, solange noch keine Einstellungen gespeichert sind; danach zaehlt die gespeicherte Sprache.
+#ifndef DEFAULT_LANG
+#define DEFAULT_LANG 0
+#endif
 
 struct Config {
     char ssid[33]{}, password[65]{}, meter[64]{};
@@ -40,7 +46,7 @@ struct Config {
     char mqttUser[33]{}, mqttPass[65]{};
     char mqttBase[33] = "huaweisoyo";
     int haDiscovery = 1;
-    int lang = 0;                 // 0 = Deutsch, 1 = English
+    int lang = DEFAULT_LANG;      // 0 = Deutsch, 1 = English
     int screenOffMin = 60;        // Display nach so vielen Minuten ohne Beruehrung aus, 0 = nie
     int ldrWake = 1;              // Display bei starkem Helligkeitsanstieg (Lichtsensor) wieder an
     int sdLog = 1;                // Log auf der SD-Karte, wenn eine steckt

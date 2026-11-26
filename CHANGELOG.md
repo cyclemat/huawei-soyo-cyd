@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.3-beta (2026-11-26)
+
+### Neu
+- Englische Firmware: dieselbe Firmware mit Englisch als Sprache ab Werk (`pio run -e cyd-en`, Dateien `huawei-soyo-cyd-en.bin`). Im Online-Flasher als „Aktuelle Version – English“ wählbar; bei englischer Seitensprache vorausgewählt. Die Sprache bleibt in der Weboberfläche jederzeit umstellbar, bei einem Update zählt die gespeicherte Sprache. *(Beta)*
+
+### Verbessert
+- Online-Flasher: Startbild des Displays als abgedunkelter Hintergrund.
+
 ## 0.3.2-beta (2026-11-26)
 
 ### Neu

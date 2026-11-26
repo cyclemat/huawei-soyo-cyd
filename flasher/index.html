@@ -10,6 +10,8 @@
 :root{--bg:#0F1317;--card:#181D22;--line:#272E36;--tx:#E8ECEF;--tx2:#9AA5B1;--tx3:#6B7682;--ac:#F3A43B;--acd:#DD7B1F;--blue:#3C8DFF;--ink:#3A2204;--err:#FF6A5C}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+/* Startbild des Displays als Hintergrund, abgedunkelt und weichgezeichnet (das Bild hat nur 320 x 240) */
+body:before{content:"";position:fixed;inset:-24px;z-index:-1;background:linear-gradient(rgba(15,19,23,.6),rgba(15,19,23,.88)),url(../assets/splash_cyd.png) center/cover no-repeat;filter:blur(5px)}
 .wrap{max-width:900px;margin:0 auto;padding:0 16px 48px}
 .banner{display:block;width:100%;height:auto;border-radius:0 0 16px 16px;margin:0 0 20px}
 .head{display:flex;align-items:flex-start;gap:12px}
@@ -21,10 +23,10 @@ h1 .b{color:var(--blue)}h1 .o{color:var(--ac)}
 .lang button.on{background:var(--ac);border-color:var(--ac);color:var(--ink);font-weight:600}
 .sub{color:var(--tx2);margin:0 0 18px}
 .sub a{color:var(--ac)}
-.note{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;color:var(--tx2);font-size:14px;margin:0 0 22px}
+.note{background:rgba(24,29,34,.88);border:1px solid var(--line);border-radius:14px;padding:12px 14px;color:var(--tx2);font-size:14px;margin:0 0 22px}
 .note b{color:var(--tx)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.card{background:rgba(24,29,34,.9);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px}
 .card h2{font-size:17px;margin:0}
 .card .d{color:var(--tx2);font-size:13px;margin:-4px 0 0}
 .chip{display:inline-block;font-size:12px;color:var(--tx2);border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:middle}
@@ -74,7 +76,8 @@ const TX = {
       '<b>Komplett (neu einrichten)</b> = Bootloader, Partitionen und Firmware – <b>alle Einstellungen gehen verloren</b>, ' +
       'danach meldet sich das Einrichtungs-WLAN <b>HuaweiSoyo-XXXX</b> (Passwort <b>panelsat</b>).<br>' +
       'Gerät per USB anschließen, Knopf drücken, Anschluss wählen (USB-SERIAL CH340). Hängt es bei „Connecting…“: ' +
-      'BOOT-Taste halten und kurz RESET drücken. Soyo-RS485 am Stecker P1 vorher abziehen – er hängt am selben seriellen Anschluss.',
+      'BOOT-Taste halten und kurz RESET drücken. Soyo-RS485 am Stecker P1 vorher abziehen – er hängt am selben seriellen Anschluss.<br>' +
+      '<b>Deutsch / English</b> = Sprache ab Werk. Sie lässt sich jederzeit in der Weboberfläche umstellen; bei einem Update bleibt die gespeicherte Sprache.',
     steps: ['Nach dem Komplett-Flash: mit dem WLAN <b>HuaweiSoyo-XXXX</b> verbinden, Seite öffnet sich (sonst <b>http://4.3.2.1</b>).',
       'Eigenes Zugangspasswort vergeben, Heim-WLAN, Netzmessung, Soyo und Huawei eintragen, speichern.',
       'Die Adresse der Weboberfläche steht danach am Display unter <b>Einstellungen</b>. Die Sprache der Weboberfläche: oben rechts DE / EN.'],
@@ -86,7 +89,7 @@ const TX = {
     errOnline: 'Geräteliste konnte nicht geladen werden – Seite neu laden.',
     errLocal: 'Geräteliste fehlt – bitte über das Startskript <b>flasher.bat</b> öffnen.',
     desc: 'ESP32-2432S028R (2,8″ Touch) – Nulleinspeisung mit SoyoSource und Huawei R48xx',
-    labels: {release: 'Aktuelle Version', lokal: 'Lokal gebaut'}
+    labels: {release: 'Aktuelle Version – Deutsch', 'release-en': 'Aktuelle Version – English', lokal: 'Lokal gebaut'}
   },
   en: {
     sub: 'Flash the firmware for the Cheap Yellow Display via USB straight from the browser (Chrome or Edge on a PC).',
@@ -95,7 +98,8 @@ const TX = {
       '<b>Complete (set up again)</b> = bootloader, partitions and firmware – <b>all settings are lost</b>, ' +
       'afterwards the setup Wi-Fi <b>HuaweiSoyo-XXXX</b> appears (password <b>panelsat</b>).<br>' +
       'Connect the device via USB, press the button, pick the port (USB-SERIAL CH340). If it hangs at “Connecting…”: ' +
-      'hold the BOOT button and briefly press RESET. Unplug the Soyo RS485 converter from connector P1 first – it shares the serial port.',
+      'hold the BOOT button and briefly press RESET. Unplug the Soyo RS485 converter from connector P1 first – it shares the serial port.<br>' +
+      '<b>Deutsch / English</b> = factory language. It can be changed in the web interface at any time; an update keeps the stored language.',
     steps: ['After a complete flash: join the Wi-Fi <b>HuaweiSoyo-XXXX</b>, the page opens by itself (otherwise <b>http://4.3.2.1</b>).',
       'Set your own access password, enter home Wi-Fi, grid meter, Soyo and Huawei, save.',
       'The address of the web interface is then shown on the display under <b>Settings</b>. Web interface language: DE / EN at the top right.'],
@@ -107,7 +111,7 @@ const TX = {
     errOnline: 'The device list could not be loaded – reload the page.',
     errLocal: 'Device list missing – please open via the start script <b>flasher.bat</b>.',
     desc: 'ESP32-2432S028R (2.8″ touch) – zero export with SoyoSource and Huawei R48xx',
-    labels: {release: 'Current version', lokal: 'Built locally'}
+    labels: {release: 'Current version – Deutsch', 'release-en': 'Current version – English', lokal: 'Built locally'}
   }
 };
 let lang = 'de';
@@ -130,7 +134,8 @@ function card(d) {
   const head = `<h2>${esc(d.name)}<span class="chip">${esc(d.chip)}</span></h2><p class="d">${esc(T.desc)}</p>`;
   if (!d.src.length) return `<div class="card">${head}<p class="none">${esc(T.noFile)}</p></div>`;
   // Vorgabe: lokal gebaut, wenn vorhanden (neuester Stand), sonst die veroeffentlichte Version
-  const key = pick[d.id] || (d.src.find(s => s.key === 'lokal') || d.src[0]).key;
+  // (online: die Sprachfassung passend zur Seitensprache)
+  const key = pick[d.id] || (d.src.find(s => s.key === 'lokal') || d.src.find(s => s.key === (lang === 'en' ? 'release-en' : 'release')) || d.src[0]).key;
   const s = d.src.find(x => x.key === key) || d.src[0];
   const name = x => T.labels[x.key] || x.label;
   const srcs = d.src.length > 1 ? `<div class="src">${d.src.map(x => `<label><input type="radio" name="src-${esc(d.id)}" value="${esc(x.key)}" ${x.key === s.key ? 'checked' : ''}>
