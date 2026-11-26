@@ -1,6 +1,6 @@
-# Fertige Firmware – Version 0.3.1-beta
+# Fertige Firmware – Version 0.3.2-beta
 
-Gebaut aus Commit c4caa35 (2026-11-26 17:21 UTC).
+Gebaut aus Commit c95eedf (2026-11-26 18:09 UTC).
 
 **Am einfachsten:** [Online-Flasher](https://cyclemat.github.io/huawei-soyo-cyd/flasher/) im Browser
 (Chrome oder Edge am PC), Geraet per USB anschliessen, „Nur Firmware (Update)“ oder „Komplett (neu einrichten)“.
@@ -13,6 +13,6 @@ Einstellungsbereich enthaelt.
 
 | Geraet | Version | Komplett (USB, 0x0) | Nur Firmware (USB, 0x10000) |
 |---|---|---|---|
-| ESP32-2432S028R (CYD) | 0.3.1-beta (c4caa35) | [huawei-soyo-cyd.bin](huawei-soyo-cyd.bin) (1503 KB) | [ota/huawei-soyo-cyd.bin](ota/huawei-soyo-cyd.bin) (1439 KB) |
+| ESP32-2432S028R (CYD) | 0.3.2-beta (c95eedf) | [huawei-soyo-cyd.bin](huawei-soyo-cyd.bin) (1503 KB) | [ota/huawei-soyo-cyd.bin](ota/huawei-soyo-cyd.bin) (1439 KB) |
 
 Die Firmware hat kein Update ueber die Weboberflaeche (Partition `huge_app`, kein OTA).

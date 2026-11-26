@@ -1,1 +1,1 @@
-{"name": "Huawei \u00b7 Soyo \u2013 Cheap Yellow Display", "version": "0.3.1-beta (c4caa35)", "new_install_prompt_erase": true, "new_install_improv_wait_time": 0, "builds": [{"chipFamily": "ESP32", "parts": [{"path": "../../../release/huawei-soyo-cyd.bin", "offset": 0}]}]}
+{"name": "Huawei \u00b7 Soyo \u2013 Cheap Yellow Display", "version": "0.3.2-beta (c95eedf)", "new_install_prompt_erase": true, "new_install_improv_wait_time": 0, "builds": [{"chipFamily": "ESP32", "parts": [{"path": "../../../release/huawei-soyo-cyd.bin", "offset": 0}]}]}
