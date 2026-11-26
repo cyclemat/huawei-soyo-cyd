@@ -42,6 +42,8 @@ Everything is implemented but **not yet fully tested on real hardware**. Start w
 
 ---
 
+📖 Step-by-step guides (German, with an English summary) are in the [wiki](wiki/Home.md).
+
 ## Contents
 
 - [Features](#features)
@@ -163,7 +165,7 @@ The header shows the mode and, on the right, the state of MQTT, CAN and Wi-Fi (g
 
 **Splash screen:** at power-on the display shows the splash screen (banner artwork with the M emblem) with a progress bar and a status line while the device starts: version, CAN, Wi-Fi (or the setup Wi-Fi name), "Ready". It stays for at least 2.5 s; a tap after start-up skips it. The Soyo and Huawei setpoints are already being sent meanwhile. For your own picture put `splash_cyd.jpg` (320 × 240, baseline JPEG) into the project folder; it is embedded at build time (`tools/embed_splash.py`). The bar sits at x 52–267, y 201–206, the status line below it.
 
-**Zero export:** regulates to the grid target. After a restart or power cut it continues automatically once valid readings arrive ("Waiting for meter"), then a 5 s pause and a gentle ramp from 0 W.
+**Zero export:** on import the Soyo feeds in and regulates to the grid target. The Huawei only charges when there is real export and then regulates to 0 W – it never raises the import to reach a positive grid target. After a restart or power cut it continues automatically once valid readings arrive ("Waiting for meter"), then a 5 s pause and a gentle ramp from 0 W.
 
 **Charge only:** hold the button for 1.2 s → charge window. Choose the power with − / + or the slider (up to the charge limit = count × charge voltage × max. current, at most 2000 W). **Hold START for 3 s** to start, **STOP** and **Cancel** act on the first touch. Soyo stays off the whole time. "Charge only" never resumes automatically after a restart.
 

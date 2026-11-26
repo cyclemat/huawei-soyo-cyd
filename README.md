@@ -42,6 +42,8 @@ Alles ist eingebaut, aber an echter Hardware **noch nicht vollständig getestet*
 
 ---
 
+📖 Schritt-für-Schritt-Anleitungen stehen im [Wiki](wiki/Home.md).
+
 ## Inhalt
 
 - [Funktionen](#funktionen)
@@ -163,7 +165,7 @@ Die Kopfzeile zeigt den Modus und rechts den Zustand von MQTT, CAN und WLAN (gr�
 
 **Startbild:** Beim Einschalten zeigt das Display das Startbild (Banner-Grafik mit M-Emblem) mit Fortschrittsbalken und Statuszeile, solange das Gerät startet: Version, CAN, WLAN (oder Name des Einrichtungs-WLANs), „Bereit“. Es bleibt mindestens 2,5 s stehen, Antippen nach dem Start überspringt es. Die Sollwerte an Soyo und Huawei werden währenddessen schon gesendet. Ein eigenes Bild: `splash_cyd.jpg` (320 × 240, JPEG „baseline“) in den Projektordner legen, es wird beim Bauen eingebettet (`tools/embed_splash.py`). Der Balken liegt bei x 52–267, y 201–206, die Statuszeile darunter.
 
-**Nulleinspeisung:** regelt auf den Restbezug. Nach Neustart oder Stromausfall geht es damit automatisch weiter, sobald gültige Messwerte da sind („Warte auf Messwert“), dann 5 s Pause und sanftes Hochfahren ab 0 W.
+**Nulleinspeisung:** Bei Bezug speist der Soyo ein und regelt auf den Restbezug. Der Huawei lädt nur, wenn wirklich eingespeist wird, und regelt dann auf 0 W – er zieht den Bezug nie hoch, um einen positiven Restbezug zu erreichen. Nach Neustart oder Stromausfall geht es damit automatisch weiter, sobald gültige Messwerte da sind („Warte auf Messwert“), dann 5 s Pause und sanftes Hochfahren ab 0 W.
 
 **Nur Laden:** Taste 1,2 s halten → Ladefenster. Leistung mit − / + oder Schieberegler wählen (bis zur Ladegrenze = Anzahl × Ladespannung × Höchststrom, höchstens 2000 W). **START 3 s halten** startet, **STOPP** und **Abbrechen** wirken sofort bei der ersten Berührung. Soyo bleibt die ganze Zeit aus. „Nur Laden“ wird nach einem Neustart nie automatisch fortgesetzt.
 
