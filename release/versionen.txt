@@ -1,1 +1,1 @@
-huawei-soyo-cyd.bin 0.3.2-beta (c95eedf)
+huawei-soyo-cyd.bin 0.3.3-beta (1db8800)

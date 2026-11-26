@@ -8,10 +8,17 @@
    "src": [
     {
      "key": "release",
-     "label": "Aktuelle Version",
-     "version": "0.3.2-beta (c95eedf)",
+     "label": "Aktuelle Version (Deutsch)",
+     "version": "0.3.3-beta (1db8800)",
      "komplett": "m/cyd-release-komplett.json",
      "update": "m/cyd-release-update.json"
+    },
+    {
+     "key": "release-en",
+     "label": "Current version (English)",
+     "version": "0.3.3-beta (1db8800)",
+     "komplett": "m/cyd-release-en-komplett.json",
+     "update": "m/cyd-release-en-update.json"
     }
    ]
   }
