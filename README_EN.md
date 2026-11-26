@@ -181,16 +181,18 @@ Light or dark (follows the device), German or English (top right), protected by 
 | --- | --- |
 | **Live** | live values, connection status, Wi-Fi signal, reason for a missing reading |
 | **Wi-Fi** | search with signal strength, tap a network, password |
-| **Grid meter** | *Shelly* (IP, channel or sum of all phases) or *MQTT topic* (topic, JSONPath, timeout) · sign · grid target |
+| **Grid meter** | *Shelly* (IP, channel or sum of all phases) or *MQTT topic* (topic, JSONPath, timeout) · sign · grid target (−200 to 200 W, negative = small export) · control interval (0.5 to 60 s) |
 | **SoyoSource** | count, max. power per unit, optionally a Shelly at the Soyo output for the actual value |
 | **Huawei** | model (sets the CAN current factor), count, charge voltage, max. current · behaviour **without CAN signal** · optionally one Shelly per Huawei (IP) and *Switch off when CAN fails* |
 | **MQTT / Home Assistant** | broker, credentials, topic prefix, discovery |
 | **Access** | setup Wi-Fi password (or open), language |
 | **Display and log** | display off after … minutes, on again with bright light, light sensor threshold with live value, log to SD card on/off |
 | **Log files** | free space, files to download, delete old logs |
-| **Device** | change access password, calibrate touch, sign out |
+| **Device** | change access password, calibrate touch, **Diagnostics**, sign out |
 
-**Huawei model and current factor:** the Huawei expects the current over CAN as amps × factor, factor = 1024 ÷ rated current.
+**Diagnostics (Device → Diagnostics):** since the USB serial belongs to the Soyo, troubleshooting runs over the network. The page shows the CAN driver state, counters (frames received per Huawei, frames with a foreign address including the last ID, rejected transmissions, bus-off restarts, error counters TEC/REC, lost frames), per Huawei its address, last answer and values, the events since start (same as the SD log, kept in RAM, also without a card) and on request a **CAN capture** of the next 64 frames (TX and RX, 10 s at most). **Download report** saves everything as a text file (`huawei-soyo-diagnose.txt`, no passwords) to pass on when asking for help. Also available at `/diag.txt` after signing in. *(Beta)*
+
+**Huawei model and current factor:** the Huawei expects the current over CAN as amps × factor, factor = 1024 ÷ rated current. The charge voltage ranges from 45 to 60 V; the Huawei limits itself to its own maximum (R4850G2: 58.5 V).
 
 | Model | Rated current | Factor |
 | --- | --- | --- |
@@ -204,7 +206,8 @@ Light or dark (follows the device), German or English (top right), protected by 
 - **The rectifiers assign their addresses themselves:** when first switched on together on one bus they agree on 1, 2, 3 and keep them afterwards. Nothing is set on the device. Which unit gets which address depends on the power-up order.
 - Enter the **count** in the web interface. The CYD talks to addresses **1 to count**, gives all of them the same charge voltage and **splits the power evenly** (e.g. 1500 W with three units = 500 W each).
 - Charging only runs when **all configured** units answer – otherwise "no CAN" and charging stops.
-- **Known limit:** the CYD expects the addresses without gaps starting at 1. If a single unit remembers address 2 from earlier, it is not found. Automatic detection is planned.
+- **A single unit** may have any address: if it answers as address 2, for example, the CYD adopts that address by itself (event "Huawei answers with CAN address 2") and talks to it from then on.
+- **Known limit with several units:** the CYD expects the addresses without gaps starting at 1. Which addresses actually answer is shown on the diagnostics page under "foreign ID" (0x108**2**407F = address 2).
 
 ## Shelly in front of the Huawei (optional)
 
@@ -252,7 +255,8 @@ Supported: `$.a.b`, `a[0].b` and `$['em:0'].act_power`; numbers sent as text wor
 | "no reading" / "Shelly does not respond" | check the IP, look at the Wi-Fi signal under *Live* (worse than about −75 dBm is too weak) |
 | "Shelly requires a password" | turn off authentication on the Shelly – the firmware queries without a password |
 | "unknown Shelly format" | model not supported – use measuring via MQTT |
-| "CAN" red | swap CTX and CRX, check CANH/CANL, measure the termination (≈ 60 Ω), check the Huawei count |
+| "CAN" red | open web interface → Device → **Diagnostics**: "has never answered" → swap CTX and CRX, check CANH/CANL, measure the termination (≈ 60 Ω); "foreign ID" → check count or addresses; bus-off or high error counters → wiring, ground, transceiver |
+| "CAN" was green and turns red | Diagnostics → events: the reason is listed there ("no answer for …", "bus-off", "too hot", "off via Shelly"). Download the report and attach it when asking |
 | "No Huawei configured" / "Charge voltage or max. current missing" | fill in web interface → Huawei |
 | Soyo does not feed in | swap A and B, check limiter mode on the Soyos, RX on P1 not connected? |
 | Grid import shows as negative | turn on *Invert sign* |

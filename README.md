@@ -181,16 +181,18 @@ Hell oder dunkel (je nach Gerät), Deutsch oder Englisch (oben rechts), geschüt
 | --- | --- |
 | **Aktuell** | Live-Werte, Verbindungsstatus, WLAN-Signal, Grund bei fehlender Messung |
 | **WLAN** | Suche mit Signalstärke, Netz antippen, Passwort |
-| **Netzmessung** | *Shelly* (IP, Kanal oder Summe aller Phasen) oder *MQTT-Abo* (Topic, JSONPath, Zeitlimit) · Vorzeichen · Restbezug |
+| **Netzmessung** | *Shelly* (IP, Kanal oder Summe aller Phasen) oder *MQTT-Abo* (Topic, JSONPath, Zeitlimit) · Vorzeichen · Restbezug (−200 bis 200 W, negativ = leichte Einspeisung) · Regelzeit (0,5 bis 60 s) |
 | **SoyoSource** | Anzahl, Höchstleistung je Gerät, optional ein Shelly am Soyo-Abgang für den Istwert |
 | **Huawei** | Modell (bestimmt den CAN-Stromfaktor), Anzahl, Ladespannung, Höchststrom · Verhalten **ohne CAN-Signal** · optional je Huawei ein Shelly (IP) und *Bei CAN-Ausfall abschalten* |
 | **MQTT / Home Assistant** | Broker, Zugangsdaten, Topic-Präfix, Discovery |
 | **Zugang** | Passwort des Einrichtungs-WLANs (oder offen), Sprache |
 | **Display und Log** | Display aus nach … Minuten, wieder an bei hellem Licht, Schwellwert Lichtsensor mit Live-Wert, Log auf SD-Karte an/aus |
 | **Log-Dateien** | freier Platz, Dateien zum Herunterladen, alte Logs löschen |
-| **Gerät** | Zugangspasswort ändern, Touch kalibrieren, Abmelden |
+| **Gerät** | Zugangspasswort ändern, Touch kalibrieren, **Diagnose**, Abmelden |
 
-**Huawei-Modell und Stromfaktor:** Der Huawei erwartet den Strom über CAN als Ampere × Faktor, Faktor = 1024 ÷ Nennstrom.
+**Diagnose (Gerät → Diagnose):** Weil der USB-Seriell dem Soyo gehört, läuft die Fehlersuche übers Netz. Die Seite zeigt den Zustand des CAN-Treibers, Zähler (empfangene Frames je Huawei, Frames mit fremder Adresse samt letzter ID, abgelehnte Sendungen, Bus-Off-Neustarts, Fehlerzähler TEC/REC, verlorene Frames), je Huawei Adresse, letzte Antwort und Werte, die Ereignisse seit dem Start (dieselben wie im SD-Log, im RAM, auch ohne Karte) und auf Knopfdruck einen **CAN-Mitschnitt** der nächsten 64 Frames (TX und RX, höchstens 10 s). **Bericht herunterladen** speichert alles als Textdatei (`huawei-soyo-diagnose.txt`, ohne Passwörter) – die kann man bei Fragen weitergeben. Direkt abrufbar unter `/diag.txt`, nach Anmeldung. *(Beta)*
+
+**Huawei-Modell und Stromfaktor:** Der Huawei erwartet den Strom über CAN als Ampere × Faktor, Faktor = 1024 ÷ Nennstrom. Die Ladespannung geht von 45 bis 60 V; der Huawei begrenzt selbst auf sein Maximum (R4850G2: 58,5 V).
 
 | Modell | Nennstrom | Faktor |
 | --- | --- | --- |
@@ -204,7 +206,8 @@ Hell oder dunkel (je nach Gerät), Deutsch oder Englisch (oben rechts), geschüt
 - **Adressen vergeben die Netzteile selbst:** Beim ersten Einschalten am gemeinsamen Bus einigen sie sich auf 1, 2, 3 und behalten sie danach. Am Gerät wird nichts eingestellt. Welches Gerät welche Adresse bekommt, hängt von der Einschaltreihenfolge ab.
 - In der Weboberfläche die **Anzahl** eintragen. Das CYD spricht die Adressen **1 bis Anzahl** an, gibt allen dieselbe Ladespannung und **teilt die Leistung gleichmäßig** auf (z. B. 1500 W bei drei Geräten = je 500 W).
 - Geladen wird nur, wenn **alle eingetragenen** Geräte antworten – sonst „CAN fehlt“ und das Laden stoppt.
-- **Bekannte Grenze:** Das CYD erwartet die Adressen lückenlos ab 1. Hat sich ein einzelnes Gerät früher die Adresse 2 gemerkt, wird es nicht gefunden. Eine automatische Erkennung ist geplant.
+- **Ein einzelnes Gerät** darf jede Adresse haben: Antwortet es z. B. als Adresse 2, übernimmt das CYD diese Adresse von selbst (Ereignis „Huawei meldet sich mit CAN-Adresse 2“) und spricht es fortan damit an.
+- **Bekannte Grenze bei mehreren Geräten:** Das CYD erwartet die Adressen lückenlos ab 1. Welche Adressen tatsächlich antworten, zeigt die Diagnoseseite unter „fremde ID“ (0x108**2**407F = Adresse 2).
 
 ## Shelly vor dem Huawei (optional)
 
@@ -252,7 +255,8 @@ Unterstützt werden `$.a.b`, `a[0].b` und `$['em:0'].act_power`; Zahlen als Text
 | „keine Messung“ / „Shelly antwortet nicht“ | IP prüfen, WLAN-Signal unter *Aktuell* ansehen (schlechter als etwa −75 dBm ist zu schwach) |
 | „Shelly verlangt ein Passwort“ | Anmeldung am Shelly abschalten – die Firmware fragt ohne Passwort ab |
 | „unbekanntes Shelly-Format“ | Modell wird nicht unterstützt – Messung per MQTT nutzen |
-| „CAN“ rot | CTX und CRX tauschen, CANH/CANL prüfen, Abschlusswiderstand messen (≈ 60 Ω), Anzahl der Huaweis prüfen |
+| „CAN“ rot | Weboberfläche → Gerät → **Diagnose** öffnen: steht dort „hat noch nie geantwortet“ → CTX und CRX tauschen, CANH/CANL prüfen, Abschlusswiderstand messen (≈ 60 Ω); „fremde ID“ → Anzahl bzw. Adressen prüfen; Bus-Off oder hohe Fehlerzähler → Verkabelung, Masse, Transceiver |
+| „CAN“ war grün und wird rot | Diagnose → Ereignisse: dort steht der Grund („keine Antwort seit …“, „Bus-Off“, „zu heiß“, „per Shelly aus“). Bericht herunterladen und bei Fragen mitschicken |
 | „Kein Huawei eingetragen“ / „Ladespannung oder Höchststrom fehlt“ | Weboberfläche → Huawei ausfüllen |
 | Soyo speist nicht ein | A und B tauschen, Limiter-Modus an den Soyos prüfen, RX am P1 nicht angeschlossen? |
 | Netzbezug wird negativ angezeigt | *Vorzeichen umkehren* einschalten |

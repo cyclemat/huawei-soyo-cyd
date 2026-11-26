@@ -7,7 +7,7 @@
 #include "dispatch.h"
 #include "i18n.h"
 
-#define FW_VERSION "0.3.0-beta"
+#define FW_VERSION "0.3.1-beta"
 
 struct Config {
     char ssid[33]{}, password[65]{}, meter[64]{};
@@ -49,6 +49,7 @@ struct Config {
     // den Huawei ab, wenn sein CAN abreisst
     char hwShelly[3][64]{};
     int hwShellyCut = 1;          // bei CAN-Ausfall abschalten
+    int controlTime10 = 10;       // Regelzeit in 0,1 s: Abstand zwischen zwei Regelschritten (5-600, ab Werk 1,0 s)
 };
 
 // Huawei-Gleichrichter: Der CAN-Stromwert ist Ampere x (1024 / Nennstrom),
@@ -62,7 +63,8 @@ struct Sample { int watts; uint32_t time; bool valid; };
 struct Rectifier {
     float dc, ac, temp;                  // Ausgangsleistung, Eingangsleistung, Temperatur
     float outV, outA, inV, inA, eff;     // weitere Messwerte fuer MQTT / Home Assistant
-    uint32_t dcAt, acAt, tempAt;
+    uint32_t dcAt, acAt, tempAt;         // tempAt = 0: keine gueltige Temperatur (temp ist dann NAN)
+    uint32_t tempRaw;                    // Rohwert der letzten 0x7F-Meldung (Diagnose)
     bool fallbackSent;
 };
 
@@ -77,6 +79,7 @@ extern uint32_t lastControl, rebootAt;
 extern int manual, selection;
 extern Sample meter, soyoMeter;
 extern Rectifier rectifier[3];
+extern uint8_t canNode[3];           // CAN-Adresse je Huawei (1..3; ein einzelnes Geraet: die gemeldete Adresse)
 extern const char *notice;           // Hinweis fuer Display (z. B. warum Laden gestoppt hat)
 extern bool redraw;                  // Display sofort aktualisieren
 extern volatile bool calibrateRequested;
@@ -95,6 +98,7 @@ const char *meterErrorText(int which);
 bool recent(uint32_t stamp, uint32_t age);
 void stop(Mode next, bool remember = true);
 bool huaweiHealthy();
+String huaweiProblem();              // warum huaweiHealthy() false ist ("" = alles in Ordnung)
 float huaweiPower(bool dc);
 uint32_t gridMaxAge();
 bool meterOK();

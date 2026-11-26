@@ -10,6 +10,7 @@
 #include "devsetup.h"
 #include "sdlog.h"
 #include "hwplug.h"
+#include "diag.h"
 
 const RectifierModel rectifierModels[] = {
     {"Eigener Faktor / custom factor", 75},
@@ -36,6 +37,7 @@ uint32_t lastTx, lastControl, lastControlledSample, rebootAt, lastDraw, portalSi
 int manual = 0, selection = 100;
 Sample meter{}, soyoMeter{};
 Rectifier rectifier[3]{};
+uint8_t canNode[3] = {1, 2, 3};
 
 bool saveConfig(const Config &c) { return prefs.putBytes("config1", &c, sizeof(c)) == sizeof(c); }
 
@@ -57,7 +59,10 @@ bool canSend(uint32_t id, const uint8_t *data) {
     msg.extd = 1;
     msg.data_length_code = 8;
     memcpy(msg.data, data, 8);
-    return twai_transmit(&msg, pdMS_TO_TICKS(4)) == ESP_OK;
+    const bool ok = twai_transmit(&msg, pdMS_TO_TICKS(4)) == ESP_OK;
+    if (!ok) canStats.txFail++;
+    diagCanFrame(true, id, data, 8);
+    return ok;
 }
 
 bool command(uint32_t address, uint8_t code, unsigned value) {
@@ -80,7 +85,7 @@ void sendOutputs() {
         : 0.0f;
     const unsigned current = unsigned(amps * ampFactor(cfg));
     for (int i = 0; i < cfg.huaweiCount; ++i) {
-        const uint32_t node = (i + 1) << 16;
+        const uint32_t node = uint32_t(canNode[i]) << 16;
         const uint32_t address = 0x108080FE | node;
         uint8_t power[] = {1, 0x32, 0, 1, 0, 0, 0, 0};
         if (current == 0) canSend(address, power);
@@ -166,6 +171,7 @@ void receiveCan() {
             // Stattdessen Treiber ganz entfernen und spaeter neu starten.
             twai_driver_uninstall();
             canReady = false;
+            canStats.busOff++;
             sdlogEvent(T("CAN: Bus-Off, Treiber wird neu gestartet", "CAN: bus-off, restarting driver"));
             canRetryAt = (millis() + 5000) | 1;
             return;
@@ -174,16 +180,53 @@ void receiveCan() {
     }
     twai_message_t m{};
     for (int n = 0; n < 48 && twai_receive(&m, 0) == ESP_OK; ++n) {
-        const int index = ((m.identifier >> 16) & 15) - 1;
-        if (!m.extd || m.rtr || index < 0 || index >= cfg.huaweiCount ||
-            (m.identifier & 0xfff0ffff) != 0x1080407f ||
-            m.data_length_code != 8 || m.data[0] != 1) continue;
+        canStats.rx++;
+        diagCanFrame(false, m.identifier, m.data, m.data_length_code);
+        // Antwort eines Huawei: 0x1081407F fuer Adresse 1, 0x1082407F fuer Adresse 2 usw.
+        const int node = (m.identifier >> 16) & 15;
+        int index = -1;
+        if (m.extd && !m.rtr && node > 0 && (m.identifier & 0xfff0ffff) == 0x1080407f) {
+            for (int i = 0; i < cfg.huaweiCount; ++i)
+                if (canNode[i] == node) index = i;
+            // Ein einzelnes Geraet darf jede Adresse haben: die gemeldete wird uebernommen und fortan angesprochen
+            if (index < 0 && cfg.huaweiCount == 1) {
+                canNode[0] = node;
+                index = 0;
+                sdlogEvent((String(T("Huawei meldet sich mit CAN-Adresse ", "Huawei answers with CAN address ")) + node +
+                            T(", wird übernommen", ", adopted")).c_str());
+            }
+        }
+        if (index < 0) {   // fremde oder unpassende ID: nur zaehlen (Diagnoseseite zeigt die letzte)
+            canStats.rxForeign++;
+            canStats.lastForeignId = m.identifier;
+            canStats.lastForeignAt = millis();
+            continue;
+        }
+        canStats.rxUnit[index]++;
+        if (m.data_length_code != 8 || m.data[0] != 1) continue;
         const float value = ((uint32_t(m.data[4]) << 24) | (uint32_t(m.data[5]) << 16) |
                              (uint32_t(m.data[6]) << 8) | m.data[7]) / 1024.0f;
         auto &r = rectifier[index];
         if (m.data[1] == 0x73) { r.dc = value; r.dcAt = millis(); }
         if (m.data[1] == 0x70) { r.ac = value; r.acAt = millis(); }
-        if (m.data[1] == 0x7f) { r.temp = value; r.tempAt = millis(); }
+        if (m.data[1] == 0x7f || m.data[1] == 0x80) {
+            // Temperaturen sind vorzeichenbehaftet (am R4850G2 gemessen: 0x7F = FF FF 8C 00 = -29,0 °C im Ruhezustand,
+            // 0x80 = 00 00 3C 00 = 15,0 °C). 0x7F = Ausgang, 0x80 = Eingang/Zuluft. Angezeigt und fuer die
+            // Uebertemperatur-Sperre benutzt wird der hoehere der beiden plausiblen Werte (-40 bis 150 °C).
+            static float outTemp[3] = {NAN, NAN, NAN};
+            const uint32_t raw = (uint32_t(m.data[4]) << 24) | (uint32_t(m.data[5]) << 16) | (uint32_t(m.data[6]) << 8) | m.data[7];
+            float t = int32_t(raw) / 1024.0f;
+            if (t < -40 || t > 150) t = NAN;
+            if (m.data[1] == 0x7f) {
+                r.tempRaw = raw;
+                outTemp[index] = t;
+            } else {
+                const float o = outTemp[index];
+                const float best = isnan(t) ? o : isnan(o) ? t : max(t, o);
+                if (isnan(best)) { r.temp = NAN; r.tempAt = 0; }
+                else { r.temp = best; r.tempAt = millis(); }
+            }
+        }
         // Codes laut craigpeacock/Huawei_R4850G2_CAN (r4850.c), alle Werte / 1024
         if (m.data[1] == 0x75) r.outV = value;
         if (m.data[1] == 0x81) r.outA = value;
@@ -201,9 +244,30 @@ bool huaweiHealthy() {
     }
     for (int i = 0; i < cfg.huaweiCount; ++i) {
         const auto &r = rectifier[i];
-        if (!recent(r.acAt, 3000) || !recent(r.tempAt, 3000) || r.temp >= 85) return false;
+        // Verbunden = der Huawei antwortet. Die Temperatur sperrt nur, wenn wirklich eine gueltige Meldung
+        // mit 85 °C oder mehr vorliegt; eine fehlende oder unlesbare Temperatur sperrt nicht.
+        if (!recent(r.acAt, 3000)) return false;
+        if (recent(r.tempAt, 3000) && r.temp >= 85) return false;
     }
     return true;
+}
+
+// Klartext, warum huaweiHealthy() false ist – fuer Ereignis und Diagnoseseite
+String huaweiProblem() {
+    if (!cfg.huaweiCount) return "";
+    if (!canReady) return T("CAN-Treiber nicht gestartet (Bus-Off oder kein Transceiver)", "CAN driver not running (bus-off or no transceiver)");
+    twai_status_info_t status{};
+    if (twai_get_status_info(&status) != ESP_OK) return T("CAN-Status nicht lesbar", "CAN status not readable");
+    if (status.state == TWAI_STATE_BUS_OFF) return T("CAN Bus-Off (Verkabelung, Abschlusswiderstand, Transceiver)", "CAN bus-off (wiring, termination, transceiver)");
+    if (status.state != TWAI_STATE_RUNNING) return T("CAN-Treiber angehalten", "CAN driver stopped");
+    for (int i = 0; i < cfg.huaweiCount; ++i) {
+        const auto &r = rectifier[i];
+        const String who = String("Huawei ") + (i + 1) + T(" (Adresse ", " (address ") + canNode[i] + "): ";
+        if (!r.acAt) return who + T("hat noch nie geantwortet", "has never answered");
+        if (!recent(r.acAt, 3000)) return who + T("keine Antwort seit ", "no answer for ") + String((millis() - r.acAt) / 1000.0f, 1) + " s";
+        if (recent(r.tempAt, 3000) && r.temp >= 85) return who + T("zu heiß, ", "too hot, ") + String(r.temp, 0) + " °C";
+    }
+    return "";
 }
 
 float huaweiPower(bool dc) {
@@ -390,7 +454,7 @@ void loadConfig() {
     const size_t stored = prefs.getBytesLength("config1");
     if (stored == sizeof(cfg)) {
         prefs.getBytes("config1", &cfg, sizeof(cfg));
-    } else if (stored == offsetof(Config, hwShelly) || stored == offsetof(Config, ldrRise) ||
+    } else if (stored == offsetof(Config, controlTime10) || stored == offsetof(Config, hwShelly) || stored == offsetof(Config, ldrRise) ||
                stored == offsetof(Config, screenOffMin) || stored == offsetof(Config, lang) ||
                stored == offsetof(Config, meterSource) ||
                stored == offsetof(Config, fallbackMode)) {
@@ -412,6 +476,7 @@ void setup() {
     const devsetup::Boot boot = devsetup::bootCheck();   // Mehrfach-Reset zaehlen
     prefs.begin("energy", false);
     loadConfig();
+    diagBegin();   // Ereignis-Ring fuer die Diagnoseseite, vor dem ersten sdlogEvent
 
     displayBegin();
     uiInit();
@@ -512,7 +577,10 @@ void logTransitions(bool meterLive, bool huaweiOK) {
         lastMeter = meterLive;
     }
     if (cfg.huaweiCount && int(huaweiOK) != lastCan) {
-        if (lastCan >= 0 || huaweiOK) sdlogEvent(huaweiOK ? T("Huawei-CAN da", "Huawei CAN available") : T("Huawei-CAN fehlt", "Huawei CAN missing"));
+        if (lastCan >= 0 || huaweiOK) {
+            sdlogEvent(huaweiOK ? T("Huawei-CAN da", "Huawei CAN available")
+                                : (String(T("Huawei-CAN fehlt: ", "Huawei CAN missing: ")) + huaweiProblem()).c_str());
+        }
         lastCan = huaweiOK;
     }
     if (wifi != lastWifi) {
@@ -556,7 +624,7 @@ void loop() {
         notice = T("Laden gestoppt: Soyo speist ein", "Charging stopped: Soyo is feeding in");
         redraw = true;
     }
-    if (millis() - lastControl >= 1000 &&
+    if (millis() - lastControl >= uint32_t(constrain(cfg.controlTime10, 5, 600)) * 100 &&
         (mode != Mode::Zero || meter.time != lastControlledSample)) {
         lastControl = millis();
         lastControlledSample = meter.time;

@@ -428,7 +428,7 @@ void uiShowSettings() { showPage(1); }
 
 void saveReserve(int delta) {
     Config next = cfg;
-    next.reserve = constrain(cfg.reserve + delta, 0, 200);
+    next.reserve = constrain(cfg.reserve + delta, -200, 200);   // negativ = Ziel ist eine kleine Einspeisung
     if (saveConfig(next)) cfg.reserve = next.reserve;
 }
 
@@ -454,7 +454,7 @@ void runAction(int action) {
             selection = min(selection, selectionLimit());
             if (!manual && meterOK() && huaweiHealthy() && soyoIsOff() && maxCharge() >= 100) {
                 manual = selection;
-                lastControl = millis() - 1000;
+                lastControl = millis() - 60000;   // sofort regeln, egal welche Regelzeit eingestellt ist
                 notice = "";
             } else if (!manual) {
                 if (maxCharge() < 100) notice = chargeLimitReason();
@@ -860,7 +860,7 @@ void updateHuawei() {
                      decimal(r.outV, 2).c_str(), decimal(r.outA, 1).c_str(), int(lroundf(r.dc)));
             setText(ui.hwLine1[i], text);
             snprintf(text, sizeof(text), "AC %d" NNBSP "W  ·  %s" NNBSP "V  ·  %s" NNBSP "°C  ·  %s" NNBSP "%%",
-                     int(lroundf(r.ac)), decimal(r.inV, 0).c_str(), decimal(r.temp, 0).c_str(),
+                     int(lroundf(r.ac)), decimal(r.inV, 0).c_str(), isfinite(r.temp) && r.tempAt ? decimal(r.temp, 0).c_str() : "-",
                      decimal(r.eff * 100, 1).c_str());
             setText(ui.hwLine2[i], text);
         } else {

@@ -23,7 +23,11 @@ struct Dispatch {
         const int current = soyo - huawei;
         int requested = -manual;
         if (mode == Mode::Zero) {
-            const int error = grid - reserve;
+            // Der Restbezug gilt als Ziel nur fuer die Einspeisung des Soyo. Der Huawei darf nie Netzbezug erzeugen,
+            // um einen positiven Restbezug zu erreichen: Er laedt nur, wenn wirklich ins Netz eingespeist wird, und
+            // regelt dann auf 0 W (bei negativem Restbezug auf diesen Wert, also erst ab so viel Einspeisung).
+            const bool soyoSide = current > 0 || (current == 0 && grid > reserve);
+            const int error = grid - (soyoSide ? reserve : std::min(reserve, 0));
             requested = current;
             if (error > 20 || error < -20) {
                 requested += std::max(-150, std::min(150, error / 3));

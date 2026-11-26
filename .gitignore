@@ -9,3 +9,6 @@ build.log
 upload.log
 serial_*.log
 *.log
+# private Arbeitsnotizen und Python-Zwischendateien
+docs/claude-notizen.md
+__pycache__/

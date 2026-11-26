@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.1-beta (2026-11-26)
+
+### Neu
+- Diagnoseseite in der Weboberfläche (Gerät → Diagnose), weil der USB-Seriell dem Soyo gehört: CAN-Treiberzustand, Zähler (Frames je Huawei, fremde Adressen mit letzter ID, abgelehnte Sendungen, Bus-Off, TEC/REC, verlorene Frames), je Huawei Adresse, letzte Antwort und Werte, Ereignisse seit dem Start im RAM (auch ohne SD-Karte), CAN-Mitschnitt auf Knopfdruck (64 Frames TX/RX, höchstens 10 s, Puffer nur dann) und **Bericht herunterladen** (`/diag.txt`, Textdatei ohne Passwörter). *(Beta)*
+
+### Verbessert
+- Der Huawei erzeugt keinen Netzbezug mehr, um einen positiven Restbezug zu erreichen: Er lädt nur, wenn tatsächlich eingespeist wird, und regelt dann auf 0 W (bei negativem Restbezug auf diesen Wert). Der Restbezug gilt als Ziel nur noch für die Soyo-Einspeisung. *(Beta)*
+- Regelzeit in der Weboberfläche einstellbar (Netzmessung → Regelzeit, 0,5 bis 60 s, ab Werk 1,0 s): Abstand zwischen zwei Regelschritten. *(Beta)*
+- Restbezug (Ziel am Netz) darf negativ sein: −200 bis 200 W, in der Weboberfläche und am Display. Negativ = es wird leicht eingespeist. *(Beta)*
+- Ladespannung und Spannung ohne CAN bis 60 V statt 58 V (der Huawei begrenzt selbst, R4850G2: 58,5 V).
+- Ein einzelner Huawei darf jede CAN-Adresse haben: Antwortet er unter einer anderen Adresse als 1, wird sie übernommen und fortan angesprochen (Ereignis im Log). *(Beta)*
+- Ereignis „Huawei-CAN fehlt“ nennt jetzt den Grund: Gerät, Adresse, „keine Antwort seit … s“, „noch nie geantwortet“, Bus-Off, Treiber aus oder zu heiß.
+
+### Behoben
+- „Kein CAN“ trotz verbundenem Huawei: Meldete das Netzteil unter 0x7F einen unlesbaren Wert (z. B. 41234455 °C) oder gar keine Temperatur, galt der CAN als gestört und das Laden blieb gesperrt. Jetzt zählt nur noch, ob der Huawei antwortet; die Übertemperatur-Sperre greift nur bei einer gültigen Meldung (−40 bis 150 °C) ab 85 °C. Unlesbare Temperatur wird als „-“ angezeigt, der Rohwert steht im Diagnosebericht. *(Beta)*
+- Temperatur des Huawei wird vorzeichenbehaftet gelesen (am R4850G2 per CAN-Mitschnitt geprüft: 0x7F = −29,0 °C im Ruhezustand, 0x80 = 15,0 °C). Angezeigt und für die Übertemperatur-Sperre benutzt wird der höhere Wert aus Ausgang (0x7F) und Eingang (0x80). *(Beta)*
+
 ## 0.3.0-beta (2026-11-23)
 
 ### Neu

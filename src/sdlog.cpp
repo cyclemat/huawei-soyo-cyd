@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <memory>
 #include "app.h"
+#include "diag.h"
 
 namespace {
 const size_t FILE_MAX = 1024 * 1024;             // je Datei
@@ -170,6 +171,7 @@ void sdlogEvent(const char *text) {
     String t = text;
     t.replace(";", ",");
     t.replace("\n", " ");
+    diagEvent(t.c_str());   // immer, auch ohne SD-Karte (Weboberflaeche -> Diagnose)
     addLine(timestamp() + ";" + T("EREIGNIS", "EVENT") + ";;;;;;;;;" + t);
 }
 

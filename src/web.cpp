@@ -4,6 +4,8 @@
 #include "devsetup.h"
 #include "sdlog.h"
 #include "hwplug.h"
+#include "diag.h"
+#include <driver/twai.h>
 
 // ---------------------------------------------------------------- Ausgabe in Stuecken
 // Die Seite wird in kleinen Teilen gesendet, damit kein grosser Puffer im RAM liegt.
@@ -99,6 +101,10 @@ border:1px solid var(--line);border-radius:10px;cursor:pointer}.net.sel{border-c
 dialog{border:1px solid var(--line);border-radius:16px;background:var(--raised);color:var(--ink);max-width:420px;width:92%}
 dialog::backdrop{background:rgba(0,0,0,.45)}
 code{font-family:ui-monospace,monospace;font-size:13px}
+pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 12px;
+font:12.5px/1.4 ui-monospace,monospace;white-space:pre-wrap;word-break:break-word;max-height:340px;overflow:auto}
+.kv{width:100%;border-collapse:collapse;font-size:14px;margin:0 0 12px}.kv td{padding:6px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.kv td:first-child{color:var(--muted);padding-right:10px}.kv td:last-child{text-align:right;font-feature-settings:"tnum"}
 )CSS";
 
 void pageHead(Page &p, const char *title) {
@@ -259,9 +265,19 @@ void pageSettings() {
            T("Netzbezug muss positiv angezeigt werden – oben unter „Aktuell“ prüfen.",
              "Grid import must show as positive – check under “Live” above."),
            "polarityInv", cfg.polarity < 0);
+    p << "<div class=\"row\">";
     field(p, T("Restbezug (Ziel am Netz) in W", "Grid target in W"), "reserve", String(cfg.reserve), "number",
-          "min=\"0\" max=\"200\"");
-    p << "</div>";
+          "min=\"-200\" max=\"200\"");
+    field(p, T("Regelzeit in s", "Control interval in s"), "controlTime", dec1(cfg.controlTime10), "number",
+          "step=\"0.1\" min=\"0.5\" max=\"60\"");
+    p << "</div><p class=\"hint\">"
+      << T("Restbezug: positiv = kleiner Bezug bleibt stehen, negativ = es wird leicht eingespeist (−200 bis 200\xE2\x80\xAF""W). "
+           "Regelzeit: Abstand zwischen zwei Regelschritten, ab Werk 1,0\xE2\x80\xAFs. Größer = ruhiger und träger, kleiner = "
+           "schneller. Ein Shelly liefert etwa einmal pro Sekunde einen neuen Wert, kürzer bringt nur mit MQTT etwas.",
+           "Grid target: positive = a small import remains, negative = a small export (−200 to 200\xE2\x80\xAF""W). Control "
+           "interval: time between two control steps, default 1.0\xE2\x80\xAFs. Larger = calmer and slower, smaller = faster. "
+           "A Shelly delivers a new value about once per second, shorter only helps with MQTT.")
+      << "</p></div>";
 
     // SoyoSource
     p << "<div class=\"card\"><h2>SoyoSource</h2><div class=\"row\">";
@@ -289,10 +305,15 @@ void pageSettings() {
     for (int i = 0; i <= 3; ++i) option(p, i, cfg.huaweiCount, i ? String(i).c_str() : T("keiner", "none"));
     p << "</select></label><div class=\"row\">";
     field(p, T("Ladespannung in V", "Charge voltage in V"), "volts", dec1(cfg.volts10), "number",
-          "step=\"0.1\" min=\"0\" max=\"58\"");
+          "step=\"0.1\" min=\"0\" max=\"60\"");
     field(p, T("Höchststrom je Gerät in A", "Max. current per unit in A"), "amps", dec1(cfg.amps10), "number",
           "step=\"0.1\" min=\"0\" max=\"75\"");
-    p << "</div><div id=\"custom\">";
+    p << "</div><p class=\"hint\">"
+      << T("Ladespannung 45 bis 60\xE2\x80\xAF""V. Der Huawei begrenzt selbst auf sein Maximum (R4850G2: 58,5\xE2\x80\xAF""V) – "
+           "darüber bleibt er bei seinem Höchstwert.",
+           "Charge voltage 45 to 60\xE2\x80\xAF""V. The Huawei limits itself to its own maximum (R4850G2: 58.5\xE2\x80\xAF""V) – "
+           "above that it stays at its maximum.")
+      << "</p><div id=\"custom\">";
     field(p, T("Eigener CAN-Stromfaktor", "Custom CAN current factor"), "ampScale", dec1(cfg.ampScale10), "number",
           "step=\"0.1\" min=\"0\" max=\"50\"");
     p << "</div><p class=\"hint\">" << T("Aktiver Stromfaktor: ", "Active current factor: ")
@@ -304,7 +325,7 @@ void pageSettings() {
            "fallbackOn", cfg.fallbackMode == 1, "id=\"fallbackOn\"");
     p << "<div class=\"row\" id=\"fallback\">";
     field(p, T("Spannung ohne CAN in V", "Voltage without CAN in V"), "fallbackVolts", dec1(cfg.fallbackVolts10), "number",
-          "step=\"0.1\" min=\"0\" max=\"58\"");
+          "step=\"0.1\" min=\"0\" max=\"60\"");
     field(p, T("Strom ohne CAN je Gerät in A", "Current without CAN per unit in A"), "fallbackAmps",
           dec1(cfg.fallbackAmps10), "number", "step=\"0.1\" min=\"0\" max=\"75\"");
     p << "</div>";
@@ -418,6 +439,7 @@ void pageSettings() {
     // Aktionen ausserhalb des Formulars
     p << "<div class=\"card\"><h2>" << T("Gerät", "Device") << "</h2><div class=\"row\">"
       << "<button type=\"button\" onclick=\"pw.showModal()\">" << T("Zugangspasswort ändern", "Change access password")
+      << "</button><button type=\"button\" onclick=\"location.href='/diag'\">" << T("Diagnose", "Diagnostics")
       << "</button><form method=\"post\" action=\"/calibrate\" style=\"display:contents\"><button>"
       << T("Touch kalibrieren", "Calibrate touch") << "</button></form>"
       << "<form method=\"post\" action=\"/logout\" style=\"display:contents\"><button class=\"d\">"
@@ -534,15 +556,16 @@ void handleSave() {
         error = T("Adressen dürfen nur Buchstaben, Ziffern, Punkt und Bindestrich enthalten.",
                   "Addresses may only contain letters, digits, dots and hyphens.");
     } else if (!readInt("meterSource", next.meterSource, 0, 1) || !readInt("channel", next.channel, -1, 2) ||
-               !readInt("meterTimeout", next.meterTimeout, 3, 300) || !readInt("reserve", next.reserve, 0, 200) ||
+               !readInt("meterTimeout", next.meterTimeout, 3, 300) || !readInt("reserve", next.reserve, -200, 200) ||
+               !readTenths("controlTime", next.controlTime10, 5, 600) ||
                !readInt("soyoCount", next.soyoCount, 0, 32) || !readInt("soyoUnit", next.soyoUnit, 0, 1200) ||
                !readInt("soyoChannel", next.soyoChannel, -1, 2) || !readInt("model", next.model, 0, modelCount - 1) ||
                !readInt("huaweiCount", next.huaweiCount, 0, 3) || !readInt("mqttPort", next.mqttPort, 1, 65535) ||
                !readInt("lang", next.lang, 0, 1) || !readInt("screenOffMin", next.screenOffMin, 0, 1440) ||
                !readInt("ldrRise", next.ldrRise, 10, 90) ||
-               !readTenths("volts", next.volts10, 0, 580) ||
+               !readTenths("volts", next.volts10, 0, 600) ||
                !readTenths("amps", next.amps10, 0, 750) || !readTenths("ampScale", next.ampScale10, 0, 500) ||
-               !readTenths("fallbackVolts", next.fallbackVolts10, 0, 580) ||
+               !readTenths("fallbackVolts", next.fallbackVolts10, 0, 600) ||
                !readTenths("fallbackAmps", next.fallbackAmps10, 0, 750)) {
         error = T("Eine Zahl liegt außerhalb des erlaubten Bereichs.", "A number is out of range.");
     } else if (next.soyoCount && !next.soyoUnit) {
@@ -669,6 +692,108 @@ void handleScan() {
 }
 
 
+// ---------------------------------------------------------------- Diagnose (CAN, Ereignisse, Mitschnitt)
+String jnum(float v, bool valid, int digits) { return valid && isfinite(v) ? String(v, digits) : String("null"); }
+
+void handleDiagJson() {
+    twai_status_info_t s{};
+    const bool st = cfg.huaweiCount && canReady && twai_get_status_info(&s) == ESP_OK;
+    const char *state = !cfg.huaweiCount ? "off" : !canReady ? "down" : !st ? "unknown"
+                      : s.state == TWAI_STATE_RUNNING ? "running" : s.state == TWAI_STATE_BUS_OFF ? "busoff"
+                      : s.state == TWAI_STATE_STOPPED ? "stopped" : "recovering";
+    char hex[12];
+    snprintf(hex, sizeof(hex), "%08lX", static_cast<unsigned long>(canStats.lastForeignId));
+    String j;
+    j.reserve(2500);
+    j += String("{\"up\":") + millis() / 1000 + ",\"heap\":" + ESP.getFreeHeap() + ",\"heapMin\":" + ESP.getMinFreeHeap() +
+         ",\"rssi\":" + (WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0) + ",\"fw\":\"" FW_VERSION "\"";
+    j += String(",\"can\":{\"state\":\"") + state + "\",\"count\":" + cfg.huaweiCount + ",\"problem\":" + jsonString(huaweiProblem()) +
+         ",\"rx\":" + canStats.rx + ",\"foreign\":" + canStats.rxForeign + ",\"foreignId\":\"" + hex + "\",\"foreignAge\":" +
+         (canStats.lastForeignAt ? String((millis() - canStats.lastForeignAt) / 1000) : String("null")) +
+         ",\"txFail\":" + canStats.txFail + ",\"busOff\":" + canStats.busOff + ",\"tec\":" + s.tx_error_counter +
+         ",\"rec\":" + s.rx_error_counter + ",\"txFailed\":" + s.tx_failed_count +
+         ",\"rxLost\":" + (s.rx_missed_count + s.rx_overrun_count) + ",\"arb\":" + s.arb_lost_count +
+         ",\"busErr\":" + s.bus_error_count + ",\"qTx\":" + s.msgs_to_tx + ",\"qRx\":" + s.msgs_to_rx + ",\"units\":[";
+    for (int i = 0; i < cfg.huaweiCount; ++i) {
+        const auto &r = rectifier[i];
+        const bool live = recent(r.acAt, 3000);
+        j += String(i ? ",{" : "{") + "\"node\":" + canNode[i] + ",\"live\":" + (live ? "true" : "false") +
+             ",\"age\":" + (r.acAt ? String((millis() - r.acAt) / 1000.0f, 1) : String("null")) +
+             ",\"frames\":" + canStats.rxUnit[i] + ",\"ac\":" + jnum(r.ac, live, 0) + ",\"dc\":" + jnum(r.dc, live, 0) +
+             ",\"outV\":" + jnum(r.outV, live, 1) + ",\"outA\":" + jnum(r.outA, live, 1) + ",\"inV\":" + jnum(r.inV, live, 0) +
+             ",\"temp\":" + jnum(r.temp, live, 0) + "}";
+    }
+    j += "]},\"events\":" + jsonString(diagEvents()) + ",\"capture\":{\"active\":" + (diagCaptureActive() ? "true" : "false") +
+         ",\"frames\":" + diagCaptureJson() + "}}";
+    web.sendHeader("Cache-Control", "no-store");
+    web.send(200, "application/json", j);
+}
+
+void pageDiag() {
+    Page p;
+    pageHead(p, T("Diagnose", "Diagnostics"));
+    p << "<div class=\"card\"><h2>Huawei-CAN</h2><div class=\"chips\" id=\"chips\"></div><p class=\"hint\" id=\"problem\"></p>"
+      << "<table class=\"kv\" id=\"can\"></table><p class=\"hint\">"
+      << T("Zähler seit dem Start. „fremde ID“ = Frames, die zu keinem eingetragenen Huawei passen; steht dort eine ID wie "
+           "0x1082407F, antwortet ein Huawei unter Adresse 2. Fehlerzähler (TEC/REC) über 96 oder Bus-Off deuten auf "
+           "Verkabelung, Abschlusswiderstand oder Transceiver.",
+           "Counters since start. “foreign ID” = frames that match no configured Huawei; an ID like 0x1082407F means a "
+           "Huawei answers at address 2. Error counters (TEC/REC) above 96 or bus-off point to wiring, termination or the "
+           "transceiver.")
+      << "</p></div>";
+    p << "<div class=\"card\"><h2>" << T("Ereignisse (seit dem Start, im RAM)", "Events (since start, in RAM)")
+      << "</h2><pre id=\"ev\"></pre></div>";
+    p << "<div class=\"card\"><h2>" << T("CAN-Mitschnitt", "CAN capture") << "</h2><p class=\"hint\">"
+      << T("Zeichnet die nächsten 64 CAN-Frames auf (höchstens 10 s), gesendet (TX) und empfangen (RX). Läuft nur auf Knopfdruck.",
+           "Records the next 64 CAN frames (10 s at most), sent (TX) and received (RX). Runs only on request.")
+      << "</p><p><button type=\"button\" id=\"cap\" onclick=\"capture()\">" << T("Mitschnitt starten", "Start capture")
+      << "</button></p><pre id=\"frames\"></pre></div>";
+    p << "<div class=\"card\"><h2>" << T("Gerät", "Device") << "</h2><table class=\"kv\" id=\"dev\"></table><div class=\"row\">"
+      << "<button type=\"button\" class=\"p\" onclick=\"location.href='/diag.txt'\">" << T("Bericht herunterladen", "Download report")
+      << "</button><button type=\"button\" onclick=\"location.href='/'\">" << T("Zurück", "Back") << "</button></div><p class=\"hint\">"
+      << T("Der Bericht (Textdatei) enthält Einstellungen ohne Passwörter, CAN-Zustand, Huawei-Werte, Ereignisse und den "
+           "letzten Mitschnitt – zum Weitergeben bei Fragen.",
+           "The report (text file) holds settings without passwords, CAN state, Huawei values, events and the last capture – "
+           "to pass on when asking for help.")
+      << "</p></div>";
+    p << "<script>const L={state:{off:'" << T("kein Huawei eingetragen", "no Huawei configured") << "',down:'"
+      << T("Treiber aus", "driver down") << "',running:'" << T("läuft", "running") << "',busoff:'Bus-Off',stopped:'"
+      << T("angehalten", "stopped") << "',recovering:'" << T("erholt sich", "recovering") << "'},addr:'" << T("Adresse", "address")
+      << "',live:'" << T("antwortet", "answering") << "',dead:'" << T("keine Daten", "no data") << "',ok:'"
+      << T("Alles in Ordnung.", "All fine.") << "',rx:'" << T("Frames empfangen", "Frames received") << "',foreign:'"
+      << T("davon fremde ID", "of which foreign ID") << "',last:'" << T("zuletzt", "last") << "',ago:'" << T("vor % s", "% s ago")
+      << "',txFail:'" << T("Senden abgelehnt / fehlgeschlagen", "TX rejected / failed") << "',busOff:'" << T("Bus-Off-Neustarts", "Bus-off restarts")
+      << "',counters:'" << T("Fehlerzähler TEC / REC", "Error counters TEC / REC") << "',lost:'" << T("Empfang verloren (Puffer voll)", "RX lost (queue full)")
+      << "',busErr:'" << T("Busfehler / Arbitrierung verloren", "Bus errors / arbitration lost") << "',queue:'" << T("Warteschlange TX / RX", "Queue TX / RX")
+      << "',frames:'Frames',age:'" << T("letzte Antwort vor % s", "last answer % s ago") << "',values:'" << T("Werte", "values")
+      << "',noEvents:'" << T("noch keine Ereignisse", "no events yet") << "',up:'" << T("Laufzeit", "Uptime") << "',heap:'"
+      << T("Speicher frei", "Free memory") << "',min:'min.',capRun:'" << T("Mitschnitt läuft …", "Capturing …") << "',capStart:'"
+      << T("Mitschnitt starten", "Start capture") << "',waiting:'" << T("warte auf Frames …", "waiting for frames …") << "',noFrames:'"
+      << T("kein Mitschnitt", "no capture") << "'};";
+    p << R"JS(
+const $=s=>document.querySelector(s),nb=' ';
+function row(k,v){return '<tr><td>'+k+'</td><td>'+v+'</td></tr>';}
+function tick(){fetch('/api/diag').then(r=>r.json()).then(d=>{const c=d.can,chips=[['CAN: '+(L.state[c.state]||c.state),c.state=='running']];
+c.units.forEach((u,i)=>chips.push(['Huawei '+(i+1)+' ('+L.addr+' '+u.node+'): '+(u.live?L.live:L.dead),u.live]));
+$('#chips').innerHTML=chips.map(x=>'<span class="chip '+(x[1]?'ok':'err')+'">'+x[0]+'</span>').join('');
+$('#problem').textContent=c.problem||(c.count?L.ok:'');let h='';
+if(c.count){h+=row(L.rx,c.rx)+row(L.foreign,c.foreign+(c.foreign?' · '+L.last+' 0x'+c.foreignId+(c.foreignAge!=null?', '+L.ago.replace('%',c.foreignAge):''):''))
++row(L.txFail,c.txFail+' / '+c.txFailed)+row(L.busOff,c.busOff)+row(L.counters,c.tec+' / '+c.rec)+row(L.lost,c.rxLost)
++row(L.busErr,c.busErr+' / '+c.arb)+row(L.queue,c.qTx+' / '+c.qRx);
+c.units.forEach((u,i)=>{h+=row('Huawei '+(i+1)+' '+L.frames,u.frames+(u.age!=null?' · '+L.age.replace('%',u.age):''));
+if(u.live)h+=row('Huawei '+(i+1)+' '+L.values,u.outV+nb+'V · '+u.outA+nb+'A · DC '+u.dc+nb+'W · AC '+u.ac+nb+'W · '+u.inV+nb+'V~ · '+(u.temp==null?'–':u.temp)+nb+'°C');});}
+$('#can').innerHTML=h;$('#ev').textContent=d.events||L.noEvents;
+$('#dev').innerHTML=row('Firmware',d.fw)+row(L.up,Math.floor(d.up/3600)+' h '+Math.floor(d.up%3600/60)+' min')
++row(L.heap,Math.round(d.heap/1024)+nb+'KB ('+L.min+' '+Math.round(d.heapMin/1024)+nb+'KB)')+row('WLAN',d.rssi?d.rssi+nb+'dBm':'–');
+const cp=d.capture;$('#cap').disabled=cp.active;$('#cap').textContent=cp.active?L.capRun:L.capStart;
+$('#frames').textContent=cp.frames.length?cp.frames.map(f=>String(f[0]).padStart(5)+' ms  '+f[1]+'  '+f[2]+'  '+f[3]).join('\n'):(cp.active?L.waiting:L.noFrames);
+}).catch(()=>{});}
+function capture(){fetch('/diag/capture',{method:'POST'}).then(tick);}
+tick();setInterval(tick,2000);
+</script>)JS";
+    pageEnd(p);
+}
+
 // ---------------------------------------------------------------- Captive Portal und Routen
 void toPortal() {
     web.sendHeader("Location", String("http://") + devsetup::AP_IP.toString() + "/", true);
@@ -712,6 +837,18 @@ void webBegin() {
     web.on("/save", HTTP_POST, [] { if (guard()) handleSave(); });
     web.on("/scan", HTTP_GET, [] { if (guard()) handleScan(); });
     web.on("/api/status", HTTP_GET, [] { if (guard()) handleStatus(); });
+    web.on("/diag", HTTP_GET, [] { if (guard()) pageDiag(); });
+    web.on("/api/diag", HTTP_GET, [] { if (guard()) handleDiagJson(); });
+    web.on("/diag/capture", HTTP_POST, [] {
+        if (!guard()) return;
+        web.send(diagCaptureStart() ? 200 : 507, "text/plain", "ok");
+    });
+    web.on("/diag.txt", HTTP_GET, [] {
+        if (!guard()) return;
+        web.sendHeader("Cache-Control", "no-store");
+        web.sendHeader("Content-Disposition", "attachment; filename=\"huawei-soyo-diagnose.txt\"");
+        web.send(200, "text/plain; charset=utf-8", diagReport());
+    });
     web.on("/logfile", HTTP_GET, [] {
         if (!guard()) return;
         if (!sdlogSend(web.arg("f"))) web.send(404, "text/plain", T("Datei nicht gefunden", "File not found"));
