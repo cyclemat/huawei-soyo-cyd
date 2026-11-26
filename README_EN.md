@@ -12,6 +12,7 @@
   <img src="https://img.shields.io/badge/Connection-CAN%20%7C%20RS485%20%7C%20MQTT-blueviolet" alt="Connection">
   <img src="https://img.shields.io/badge/Cloud-none-brightgreen" alt="No cloud">
   <img src="https://img.shields.io/badge/Status-Beta%20%2F%20Testing-yellow" alt="Status">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-lightgrey" alt="License"></a>
 </p>
 
 <p align="center">
@@ -144,7 +145,7 @@ Each module gets its own connector on the CYD.
 6. Under **Live**, check that grid import shows as **positive** – otherwise *Invert sign*.
 7. Touch inaccurate? Press the screen for 2 s while switching on, after "Release now" tap the arrow tips in the corners.
 
-The setup Wi-Fi also appears when the home Wi-Fi is not reachable at start. If no phone connects for 5 minutes, the device restarts and tries again – important after a power cut when the router takes longer.
+The setup Wi-Fi also appears when the home Wi-Fi is not reachable at start. While no phone is connected to it, the device retries the home Wi-Fi every 30 s and then restarts by itself. After 5 minutes without a phone at the latest it restarts and tries again – important after a power cut when the router takes longer.
 
 **Reset** – switch the device off and on quickly (under 10 s each; crashes do not count):
 
@@ -272,6 +273,8 @@ This project is built in my spare time. If it helps you, I am happy about a coff
 No pressure, no ads, no paywall – just open source with passion ❤
 
 ## Technology and licenses
+
+**License:** [PolyForm Noncommercial 1.0.0](LICENSE). Anyone may use, modify and share the firmware for private, non-commercial purposes. **Commercial use – including selling devices running this firmware – requires the author's written permission** (ask via a GitHub issue). Third-party components keep their own licenses, see [THIRD_PARTY.md](THIRD_PARTY.md).
 
 PlatformIO, Arduino-ESP32 2.0.17, LVGL 8.4, LovyanGFX (display and touch as in Simple Open Camper), PubSubClient. Partition `huge_app.csv` (no OTA).
 

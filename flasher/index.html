@@ -12,8 +12,13 @@
 body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
 .wrap{max-width:900px;margin:0 auto;padding:0 16px 48px}
 .banner{display:block;width:100%;height:auto;border-radius:0 0 16px 16px;margin:0 0 20px}
+.head{display:flex;align-items:flex-start;gap:12px}
+.head h1{flex:1}
 h1{font-size:24px;margin:0 0 4px}
 h1 .b{color:var(--blue)}h1 .o{color:var(--ac)}
+.lang{display:flex;gap:4px;flex:none}
+.lang button{border:1px solid var(--line);background:transparent;color:var(--tx2);font:inherit;font-size:13px;padding:4px 10px;border-radius:999px;cursor:pointer}
+.lang button.on{background:var(--ac);border-color:var(--ac);color:var(--ink);font-weight:600}
 .sub{color:var(--tx2);margin:0 0 18px}
 .sub a{color:var(--ac)}
 .note{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;color:var(--tx2);font-size:14px;margin:0 0 22px}
@@ -40,23 +45,17 @@ h1 .b{color:var(--blue)}h1 .o{color:var(--ac)}
 </head>
 <body>
 <div class="wrap">
-  <img class="banner" src="../assets/banner_small.jpg" alt="Huawei · Soyo – Nulleinspeisung am Cheap Yellow Display">
-  <h1><span class="o">Huawei</span> · <span class="b">Soyo</span> – Flasher</h1>
-  <p class="sub">Firmware für das Cheap Yellow Display per USB direkt aus dem Browser aufspielen (Chrome oder Edge am PC).
-    <a href="https://github.com/cyclemat/huawei-soyo-cyd">Projekt auf GitHub</a></p>
-  <div class="note">
-    <b>Nur Firmware (Update)</b> = Einstellungen bleiben (WLAN, Passwörter, Soyo, Huawei, Shelly).
-    <b>Komplett (neu einrichten)</b> = Bootloader, Partitionen und Firmware – <b>alle Einstellungen gehen verloren</b>,
-    danach meldet sich das Einrichtungs-WLAN <b>HuaweiSoyo-XXXX</b> (Passwort <b>panelsat</b>).<br>
-    Gerät per USB anschließen, Knopf drücken, Anschluss wählen (USB-SERIAL CH340). Hängt es bei „Connecting…“:
-    BOOT-Taste halten und kurz RESET drücken. Soyo-RS485 am Stecker P1 vorher abziehen – er hängt am selben seriellen Anschluss.
+  <img class="banner" src="../assets/banner_small.jpg" alt="Huawei · Soyo">
+  <div class="head">
+    <h1><span class="o">Huawei</span> · <span class="b">Soyo</span> – Flasher</h1>
+    <div class="lang"><button id="lde" onclick="setLang('de')">DE</button><button id="len" onclick="setLang('en')">EN</button></div>
   </div>
-  <div id="grid"><p class="none">Lade Geräteliste …</p></div>
-  <ol class="steps">
-    <li>Nach dem Komplett-Flash: mit dem WLAN <b>HuaweiSoyo-XXXX</b> verbinden, Seite öffnet sich (sonst <b>http://4.3.2.1</b>).</li>
-    <li>Eigenes Zugangspasswort vergeben, Heim-WLAN, Netzmessung, Soyo und Huawei eintragen, speichern.</li>
-    <li>Die Adresse der Weboberfläche steht danach am Display unter <b>Einstellungen</b>.</li>
-  </ol>
+  <p class="sub"><span id="tSub"></span>
+    <a href="https://github.com/cyclemat/huawei-soyo-cyd" id="tRepo"></a> ·
+    <a href="https://github.com/cyclemat/huawei-soyo-cyd/wiki" id="tWiki"></a></p>
+  <div class="note" id="tNote"></div>
+  <div id="grid"><p class="none">…</p></div>
+  <ol class="steps" id="tSteps"></ol>
 </div>
 <script>
 'use strict';
@@ -65,34 +64,102 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&
 // Online (GitHub Pages): flasher/online/ (nur veroeffentlichte Dateien); lokal: flasher/gen/ (flasher.bat, mit lokalem Build)
 const ONLINE = /\.github\.io$/.test(location.hostname);
 const BASE = ONLINE ? 'online/' : 'gen/';
-let DEV = [];
+
+// Texte Deutsch / English
+const TX = {
+  de: {
+    sub: 'Firmware für das Cheap Yellow Display per USB direkt aus dem Browser aufspielen (Chrome oder Edge am PC).',
+    repo: 'Projekt auf GitHub', wiki: 'Anleitungen im Wiki',
+    note: '<b>Nur Firmware (Update)</b> = Einstellungen bleiben (WLAN, Passwörter, Soyo, Huawei, Shelly). ' +
+      '<b>Komplett (neu einrichten)</b> = Bootloader, Partitionen und Firmware – <b>alle Einstellungen gehen verloren</b>, ' +
+      'danach meldet sich das Einrichtungs-WLAN <b>HuaweiSoyo-XXXX</b> (Passwort <b>panelsat</b>).<br>' +
+      'Gerät per USB anschließen, Knopf drücken, Anschluss wählen (USB-SERIAL CH340). Hängt es bei „Connecting…“: ' +
+      'BOOT-Taste halten und kurz RESET drücken. Soyo-RS485 am Stecker P1 vorher abziehen – er hängt am selben seriellen Anschluss.',
+    steps: ['Nach dem Komplett-Flash: mit dem WLAN <b>HuaweiSoyo-XXXX</b> verbinden, Seite öffnet sich (sonst <b>http://4.3.2.1</b>).',
+      'Eigenes Zugangspasswort vergeben, Heim-WLAN, Netzmessung, Soyo und Huawei eintragen, speichern.',
+      'Die Adresse der Weboberfläche steht danach am Display unter <b>Einstellungen</b>. Die Sprache der Weboberfläche: oben rechts DE / EN.'],
+    update: 'Nur Firmware (Update)', full: 'Komplett (neu einrichten)',
+    unsupported: 'Dieser Browser kann kein USB-Flashen – bitte Chrome oder Edge am PC.',
+    notAllowed: 'Nur über http://localhost bzw. https möglich (Startskript flasher.bat benutzen).',
+    noFile: 'Noch keine Firmware-Datei – weder im Release noch lokal gebaut.',
+    noDev: 'Keine Geräte.', loading: 'Lade Geräteliste …',
+    errOnline: 'Geräteliste konnte nicht geladen werden – Seite neu laden.',
+    errLocal: 'Geräteliste fehlt – bitte über das Startskript <b>flasher.bat</b> öffnen.',
+    desc: 'ESP32-2432S028R (2,8″ Touch) – Nulleinspeisung mit SoyoSource und Huawei R48xx',
+    labels: {release: 'Aktuelle Version', lokal: 'Lokal gebaut'}
+  },
+  en: {
+    sub: 'Flash the firmware for the Cheap Yellow Display via USB straight from the browser (Chrome or Edge on a PC).',
+    repo: 'Project on GitHub', wiki: 'Guides in the wiki',
+    note: '<b>Firmware only (update)</b> = settings are kept (Wi-Fi, passwords, Soyo, Huawei, Shelly). ' +
+      '<b>Complete (set up again)</b> = bootloader, partitions and firmware – <b>all settings are lost</b>, ' +
+      'afterwards the setup Wi-Fi <b>HuaweiSoyo-XXXX</b> appears (password <b>panelsat</b>).<br>' +
+      'Connect the device via USB, press the button, pick the port (USB-SERIAL CH340). If it hangs at “Connecting…”: ' +
+      'hold the BOOT button and briefly press RESET. Unplug the Soyo RS485 converter from connector P1 first – it shares the serial port.',
+    steps: ['After a complete flash: join the Wi-Fi <b>HuaweiSoyo-XXXX</b>, the page opens by itself (otherwise <b>http://4.3.2.1</b>).',
+      'Set your own access password, enter home Wi-Fi, grid meter, Soyo and Huawei, save.',
+      'The address of the web interface is then shown on the display under <b>Settings</b>. Web interface language: DE / EN at the top right.'],
+    update: 'Firmware only (update)', full: 'Complete (set up again)',
+    unsupported: 'This browser cannot flash via USB – please use Chrome or Edge on a PC.',
+    notAllowed: 'Only possible via http://localhost or https (use the start script flasher.bat).',
+    noFile: 'No firmware file yet – neither in the release nor built locally.',
+    noDev: 'No devices.', loading: 'Loading device list …',
+    errOnline: 'The device list could not be loaded – reload the page.',
+    errLocal: 'Device list missing – please open via the start script <b>flasher.bat</b>.',
+    desc: 'ESP32-2432S028R (2.8″ touch) – zero export with SoyoSource and Huawei R48xx',
+    labels: {release: 'Current version', lokal: 'Built locally'}
+  }
+};
+let lang = 'de';
+try { lang = localStorage.getItem('lang') || ((navigator.language || 'de').toLowerCase().startsWith('de') ? 'de' : 'en'); } catch (e) {}
+if (!TX[lang]) lang = 'de';
+let T = TX[lang];
+let DEV = null, failed = false;
 const pick = {};
 
 function btn(manifest, label, primary) {
   if (!manifest) return '';
   return `<esp-web-install-button manifest="${BASE}${esc(manifest)}">
     <button slot="activate" class="btn ${primary ? 'p' : ''}">${esc(label)}</button>
-    <span slot="unsupported" class="hint err">Dieser Browser kann kein USB-Flashen – bitte Chrome oder Edge am PC.</span>
-    <span slot="not-allowed" class="hint err">Nur über http://localhost bzw. https möglich (Startskript flasher.bat benutzen).</span>
+    <span slot="unsupported" class="hint err">${esc(T.unsupported)}</span>
+    <span slot="not-allowed" class="hint err">${esc(T.notAllowed)}</span>
   </esp-web-install-button>`;
 }
 
 function card(d) {
-  if (!d.src.length) return `<div class="card"><h2>${esc(d.name)}<span class="chip">${esc(d.chip)}</span></h2><p class="d">${esc(d.desc)}</p>
-    <p class="none">Noch keine Firmware-Datei – weder im Release noch lokal gebaut.</p></div>`;
+  const head = `<h2>${esc(d.name)}<span class="chip">${esc(d.chip)}</span></h2><p class="d">${esc(T.desc)}</p>`;
+  if (!d.src.length) return `<div class="card">${head}<p class="none">${esc(T.noFile)}</p></div>`;
   // Vorgabe: lokal gebaut, wenn vorhanden (neuester Stand), sonst die veroeffentlichte Version
   const key = pick[d.id] || (d.src.find(s => s.key === 'lokal') || d.src[0]).key;
   const s = d.src.find(x => x.key === key) || d.src[0];
+  const name = x => T.labels[x.key] || x.label;
   const srcs = d.src.length > 1 ? `<div class="src">${d.src.map(x => `<label><input type="radio" name="src-${esc(d.id)}" value="${esc(x.key)}" ${x.key === s.key ? 'checked' : ''}>
-      ${esc(x.label)} <b>${esc(x.version)}</b>${x.when ? ' · ' + esc(x.when) : ''}</label>`).join('')}</div>`
-    : `<div class="src"><span>${esc(s.label)} <b>${esc(s.version)}</b>${s.when ? ' · ' + esc(s.when) : ''}</span></div>`;
-  return `<div class="card" data-id="${esc(d.id)}"><h2>${esc(d.name)}<span class="chip">${esc(d.chip)}</span></h2><p class="d">${esc(d.desc)}</p>
+      ${esc(name(x))} <b>${esc(x.version)}</b>${x.when ? ' · ' + esc(x.when) : ''}</label>`).join('')}</div>`
+    : `<div class="src"><span>${esc(name(s))} <b>${esc(s.version)}</b>${s.when ? ' · ' + esc(s.when) : ''}</span></div>`;
+  return `<div class="card" data-id="${esc(d.id)}">${head}
     ${srcs}
-    <div class="btns">${btn(s.update, 'Nur Firmware (Update)', true)}${btn(s.komplett, 'Komplett (neu einrichten)', !s.update)}</div></div>`;
+    <div class="btns">${btn(s.update, T.update, true)}${btn(s.komplett, T.full, !s.update)}</div></div>`;
 }
 
 function render() {
-  $('#grid').innerHTML = `<div class="grid">${DEV.map(card).join('') || '<p class="none">Keine Geräte.</p>'}</div>`;
+  document.documentElement.lang = lang;
+  $('#lde').className = lang === 'de' ? 'on' : '';
+  $('#len').className = lang === 'en' ? 'on' : '';
+  $('#tSub').textContent = T.sub;
+  $('#tRepo').textContent = T.repo;
+  $('#tWiki').textContent = T.wiki;
+  $('#tNote').innerHTML = T.note;
+  $('#tSteps').innerHTML = T.steps.map(s => `<li>${s}</li>`).join('');
+  if (failed) $('#grid').innerHTML = `<p class="none err">${ONLINE ? T.errOnline : T.errLocal}</p>`;
+  else if (!DEV) $('#grid').innerHTML = `<p class="none">${esc(T.loading)}</p>`;
+  else $('#grid').innerHTML = `<div class="grid">${DEV.map(card).join('') || `<p class="none">${esc(T.noDev)}</p>`}</div>`;
+}
+
+function setLang(l) {
+  lang = l;
+  T = TX[l];
+  try { localStorage.setItem('lang', l); } catch (e) {}
+  render();
 }
 
 $('#grid').addEventListener('change', e => {
@@ -101,9 +168,9 @@ $('#grid').addEventListener('change', e => {
   pick[r.closest('.card').dataset.id] = r.value;
   render();
 });
+render();
 fetch(BASE + 'geraete.json', {cache: 'no-store'}).then(r => r.json()).then(j => { DEV = j.devices || []; render(); })
-  .catch(() => { $('#grid').innerHTML = ONLINE ? '<p class="none err">Geräteliste konnte nicht geladen werden – Seite neu laden.</p>'
-    : '<p class="none err">Geräteliste fehlt – bitte über das Startskript <b>flasher.bat</b> öffnen.</p>'; });
+  .catch(() => { failed = true; render(); });
 </script>
 </body>
 </html>

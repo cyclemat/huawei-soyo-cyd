@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.2-beta (2026-11-26)
+
+### Neu
+- Lizenz: PolyForm Noncommercial 1.0.0 (`LICENSE`). Nutzen, Ändern und Weitergeben für nicht-kommerzielle Zwecke erlaubt, kommerzielle Nutzung nur mit Erlaubnis des Urhebers.
+- Anleitungen im Wiki und im Ordner `wiki/`, vollständig auf Deutsch und Englisch (Aufbau, Firmware und Einrichtung, Regelung, Diagnose).
+- Online-Flasher zweisprachig (DE / EN oben rechts, Vorgabe nach Browsersprache).
+
+### Behoben
+- Gerät blieb im Einrichtungs-WLAN (4.3.2.1) hängen, wenn das Heim-WLAN beim Start nicht innerhalb von 12 s erreichbar war: Es versuchte danach nicht mehr, sich zu verbinden, solange ein Handy am Einrichtungs-WLAN hing, sonst erst nach 5 min per Neustart. Jetzt versucht es alle 30 s im Hintergrund, das Heim-WLAN zu erreichen (nur wenn kein Handy am Einrichtungs-WLAN hängt), und startet bei Erfolg von selbst neu. Beim Start gibt es nach 6 s einen zweiten Verbindungsversuch. *(Beta)*
+
 ## 0.3.1-beta (2026-11-26)
 
 ### Neu

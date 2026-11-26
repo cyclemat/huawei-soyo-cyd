@@ -12,6 +12,7 @@
   <img src="https://img.shields.io/badge/Verbindung-CAN%20%7C%20RS485%20%7C%20MQTT-blueviolet" alt="Verbindung">
   <img src="https://img.shields.io/badge/Cloud-keine-brightgreen" alt="Ohne Cloud">
   <img src="https://img.shields.io/badge/Status-Beta%20%2F%20Testing-yellow" alt="Status">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/Lizenz-PolyForm%20Noncommercial%201.0.0-lightgrey" alt="Lizenz"></a>
 </p>
 
 <p align="center">
@@ -144,7 +145,7 @@ Jedes Modul bekommt seinen eigenen Stecker am CYD.
 6. Unter **Aktuell** prüfen, dass Netzbezug **positiv** angezeigt wird – sonst *Vorzeichen umkehren*.
 7. Touch ungenau? Beim Einschalten 2 s auf den Bildschirm drücken, nach „Jetzt loslassen“ die Pfeilspitzen in den Ecken antippen.
 
-Das Einrichtungs-WLAN erscheint auch, wenn das Heim-WLAN beim Start nicht erreichbar ist. Verbindet sich 5 Minuten lang kein Handy, startet das Gerät neu und versucht es erneut – wichtig nach einem Stromausfall, wenn der Router länger braucht.
+Das Einrichtungs-WLAN erscheint auch, wenn das Heim-WLAN beim Start nicht erreichbar ist. Solange kein Handy daran hängt, versucht das Gerät alle 30 s, das Heim-WLAN wieder zu erreichen, und startet dann von selbst neu. Spätestens nach 5 Minuten ohne Handy startet es neu und versucht es erneut – wichtig nach einem Stromausfall, wenn der Router länger braucht.
 
 **Zurücksetzen** – Gerät schnell hintereinander aus- und einschalten (jeweils unter 10 s; Abstürze zählen nicht mit):
 
@@ -272,6 +273,8 @@ Das Projekt entsteht in der Freizeit. Wenn es dir hilft, freue ich mich über ei
 Kein Druck, keine Werbung, keine Bezahlschranke – einfach Open Source mit Leidenschaft ❤
 
 ## Technik und Lizenzen
+
+**Lizenz:** [PolyForm Noncommercial 1.0.0](LICENSE). Jeder darf die Firmware privat und nicht-kommerziell nutzen, ändern und weitergeben. **Kommerzielle Nutzung – auch der Verkauf von Geräten mit dieser Firmware – nur mit schriftlicher Erlaubnis des Urhebers** (Anfrage per GitHub-Issue). Die fremden Bestandteile behalten ihre eigenen Lizenzen, siehe [THIRD_PARTY.md](THIRD_PARTY.md).
 
 PlatformIO, Arduino-ESP32 2.0.17, LVGL 8.4, LovyanGFX (Display und Touch wie Simple Open Camper), PubSubClient. Partition `huge_app.csv` (ohne OTA).
 

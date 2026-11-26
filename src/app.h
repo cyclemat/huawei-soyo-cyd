@@ -7,7 +7,7 @@
 #include "dispatch.h"
 #include "i18n.h"
 
-#define FW_VERSION "0.3.1-beta"
+#define FW_VERSION "0.3.2-beta"
 
 struct Config {
     char ssid[33]{}, password[65]{}, meter[64]{};

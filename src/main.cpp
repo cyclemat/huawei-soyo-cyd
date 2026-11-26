@@ -34,6 +34,7 @@ WebServer web(80);
 QueueHandle_t readings, soyoReadings;
 bool portal, canReady;
 uint32_t lastTx, lastControl, lastControlledSample, rebootAt, lastDraw, portalSince;
+bool portalNoWifi;   // Setup-WLAN laeuft nur, weil das Heim-WLAN beim Start fehlte: im Hintergrund weiter versuchen
 int manual = 0, selection = 100;
 Sample meter{}, soyoMeter{};
 Rectifier rectifier[3]{};
@@ -514,7 +515,13 @@ void setup() {
     if (cfg.ssid[0]) WiFi.begin(cfg.ssid, cfg.password);
     splashProgress(35, cfg.ssid[0] ? T("Verbinde WLAN...", "Connecting Wi-Fi...") : T("Kein WLAN eingerichtet", "No Wi-Fi set up"));
     const uint32_t started = millis();
+    bool secondTry = false;
     while (cfg.ssid[0] && WiFi.status() != WL_CONNECTED && millis() - started < 12000) {
+        if (!secondTry && millis() - started >= 6000) {   // haengt der erste Versuch: einmal neu ansetzen
+            secondTry = true;
+            WiFi.disconnect(false);
+            WiFi.begin(cfg.ssid, cfg.password);
+        }
         if (millis() - lastTx >= 500) sendOutputs();
         receiveCan();
         if (millis() - lastDraw >= 250) {
@@ -540,6 +547,7 @@ void setup() {
         WiFi.mode(WIFI_AP_STA);
         devsetup::apStart("HuaweiSoyo-" + deviceSuffix());
         portalSince = millis();
+        portalNoWifi = !connected && cfg.ssid[0];
         uiShowSettings();  // Einstellungen mit Setup-WLAN zeigen
     }
     if (connected) splashProgress(80, (String(T("WLAN verbunden, ", "Wi-Fi connected, ")) + WiFi.localIP().toString()).c_str());
@@ -650,6 +658,23 @@ void loop() {
     // Setup-WLAN aktiv, weil das Heim-WLAN fehlte (z. B. Router nach Stromausfall langsamer
     // als das CYD): nach 5 min ohne verbundenes Handy neu starten und erneut versuchen.
     if (portal && WiFi.softAPgetStationNum() > 0) portalSince = millis();
+    // Heim-WLAN fehlte beim Start (Router langsam, kurzer Aussetzer): alle 30 s erneut versuchen, solange kein
+    // Handy am Setup-WLAN haengt (der Verbindungsversuch wechselt den Funkkanal und wuerde es abhaengen).
+    // Klappt es, sauber neu starten – dann laufen Netzmessung, MQTT und Uhrzeit wieder wie gewohnt.
+    if (portalNoWifi && !rebootAt) {
+        static uint32_t lastTry = 0;
+        static bool trying = false;
+        if (WiFi.status() == WL_CONNECTED) {
+            sdlogEvent(T("Heim-WLAN wieder da, Neustart", "Home Wi-Fi is back, restarting"));
+            rebootAt = (millis() + 1000) | 1;
+        } else if (WiFi.softAPgetStationNum() > 0) {
+            if (trying) { WiFi.disconnect(false); trying = false; }
+        } else if (millis() - lastTry >= 30000) {
+            lastTry = millis();
+            WiFi.begin(cfg.ssid, cfg.password);
+            trying = true;
+        }
+    }
     if (portal && cfg.ssid[0] && !rebootAt && WiFi.status() != WL_CONNECTED &&
         millis() - portalSince > 5UL * 60 * 1000) {
         ESP.restart();
