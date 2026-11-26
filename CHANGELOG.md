@@ -7,6 +7,7 @@
 
 ### Verbessert
 - Online-Flasher: Startbild des Displays als abgedunkelter Hintergrund.
+- README (Deutsch und Englisch) im Aufbau der anderen Projekte: Abschnitte mit Symbolen, Tabelle „Stand“, Web-Flasher-Zeile im Kopf, Versions-Label, „Änderungen“, „Fehler und Wünsche“ mit Hinweis auf den Diagnosebericht, eigener Abschnitt „Lizenz“ mit Markenhinweis. Neue Amazon-Links für CAN-Wandler und RS485-Wandler.
 
 ## 0.3.2-beta (2026-11-26)
 

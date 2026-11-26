@@ -12,14 +12,15 @@
   <img src="https://img.shields.io/badge/Verbindung-CAN%20%7C%20RS485%20%7C%20MQTT-blueviolet" alt="Verbindung">
   <img src="https://img.shields.io/badge/Cloud-keine-brightgreen" alt="Ohne Cloud">
   <img src="https://img.shields.io/badge/Status-Beta%20%2F%20Testing-yellow" alt="Status">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/Lizenz-PolyForm%20Noncommercial%201.0.0-lightgrey" alt="Lizenz"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/Lizenz-PolyForm%20Noncommercial-blue" alt="Lizenz PolyForm Noncommercial"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/v/release/cyclemat/huawei-soyo-cyd?include_prereleases&label=Version&color=F3A43B" alt="Version"></a>
 </p>
 
 <p align="center">
   <a href="https://paypal.me/cyclemat"><img src="https://img.shields.io/badge/PayPal-CycleMat%20unterst%C3%BCtzen-00457C?logo=paypal&logoColor=white" alt="PayPal – CycleMat unterstützen"></a>
   <a href="https://link.amazon/B00jjmvuF"><img src="https://img.shields.io/badge/Amazon-Cheap%20Yellow%20Display-FF9900" alt="Cheap Yellow Display bei Amazon"></a>
-  <a href="https://link.amazon/B02DRQBV8"><img src="https://img.shields.io/badge/Amazon-CAN--Transceiver%20SN65HVD230-FF9900" alt="CAN-Transceiver bei Amazon"></a>
-  <a href="https://link.amazon/B092okQsP"><img src="https://img.shields.io/badge/Amazon-RS485--Wandler-FF9900" alt="RS485-Wandler bei Amazon"></a>
+  <a href="https://link.amazon/B0jdhyTsz"><img src="https://img.shields.io/badge/Amazon-CAN--Transceiver%20SN65HVD230-FF9900" alt="CAN-Transceiver bei Amazon"></a>
+  <a href="https://link.amazon/B0fboLu9j"><img src="https://img.shields.io/badge/Amazon-RS485--Wandler-FF9900" alt="RS485-Wandler bei Amazon"></a>
 </p>
 
 <p align="center">
@@ -27,6 +28,10 @@
 </p>
 
 > **Netzanschluss auf null: Bezug → Soyo speist aus dem Akku ein, Überschuss → Huawei lädt den Akku.**
+
+<p align="center"><b><a href="https://cyclemat.github.io/huawei-soyo-cyd/flasher/">⚡ Direkt im Browser aufspielen – Web-Flasher</a></b><br>
+<sub>Deutsch oder Englisch · Chrome oder Edge am PC, Display per USB anschließen, Sprache wählen, Knopf drücken.</sub><br>
+<sub>🇬🇧 German or English · <a href="https://cyclemat.github.io/huawei-soyo-cyd/flasher/">web flasher</a>: connect via USB, pick the language, press the button.</sub></p>
 
 ---
 
@@ -37,32 +42,44 @@ Eine Firmware für das günstige **ESP32-2432S028R** („Cheap Yellow Display“
 | **Bezug** (Haus braucht Strom) | **SoyoSource** speist ein | Akku → Haus |
 | **Einspeisung** (z. B. PV-Überschuss) | **Huawei** lädt | Netz → Akku |
 
-## 🚧 Beta – Tester und Ideen willkommen!
+## 📌 Stand
 
-Alles ist eingebaut, aber an echter Hardware **noch nicht vollständig getestet**. Mit kleiner Leistung beginnen und jedes Gerät einzeln prüfen. Wer Huawei, Soyo, Shelly oder Home Assistant dran hat und testen mag: Rückmeldungen, Logs und Ideen sind sehr willkommen!
+| | |
+|---|---|
+| Board | ESP32-2432S028R („Cheap Yellow Display“), 320×240, resistiver Touch |
+| Einrichten | Weboberfläche im Browser |
+| Sprache | Deutsch oder Englisch |
+| Am Gerät geprüft | Huawei R4850G2 per CAN: Verbindung, Messwerte, Laden |
+| Noch nicht geprüft *(Beta)* | Soyo-Einspeisung, mehrere Huaweis, Shelly vor dem Huawei, MQTT / Home Assistant, SD-Log |
+| Bezugsquelle | [CYD bei Amazon](https://link.amazon/B00jjmvuF) · [CAN-Wandler](https://link.amazon/B0jdhyTsz) · [RS485-Wandler](https://link.amazon/B0fboLu9j) |
+
+Funktionen mit *(Beta)* sind eingebaut, aber **noch nicht an echter Hardware getestet**. Mit kleiner Leistung beginnen und jedes Gerät einzeln prüfen. Rückmeldungen, Logs und Ideen sind sehr willkommen (siehe [Fehler und Wünsche](#-fehler-und-wünsche)).
 
 ---
 
-📖 Schritt-für-Schritt-Anleitungen stehen im [Wiki](wiki/Home.md).
+📖 Schritt-für-Schritt-Anleitungen stehen im **[Wiki](https://github.com/cyclemat/huawei-soyo-cyd/wiki)** (Deutsch und Englisch).
 
-## Inhalt
+## 📑 Inhalt
 
-- [Funktionen](#funktionen)
-- [Teile](#teile)
-- [Anschluss](#anschluss)
-- [Firmware aufspielen](#firmware-aufspielen)
-- [Erster Start](#erster-start)
-- [Bedienung am Display](#bedienung-am-display)
-- [Weboberfläche](#weboberfläche)
-- [Mehrere Huawei-Netzteile](#mehrere-huawei-netzteile)
-- [Shelly vor dem Huawei](#shelly-vor-dem-huawei-optional)
-- [MQTT und Home Assistant](#mqtt-und-home-assistant)
-- [Sicherheit](#sicherheit)
-- [Fehlersuche](#fehlersuche)
+- [Was es kann](#-was-es-kann)
+- [Hardware](#-hardware)
+- [Anschluss](#-anschluss)
+- [Firmware aufspielen](#-firmware-aufspielen)
+- [Erste Einrichtung](#-erste-einrichtung)
+- [Bedienung am Display](#-bedienung-am-display)
+- [Weboberfläche](#-weboberfläche)
+- [Mehrere Huawei-Netzteile](#-mehrere-huawei-netzteile)
+- [Shelly vor dem Huawei](#-shelly-vor-dem-huawei-optional)
+- [MQTT und Home Assistant](#-mqtt-und-home-assistant)
+- [Sicherheit](#-sicherheit)
+- [Fehlersuche](#-fehlersuche)
+- [Änderungen](#-änderungen)
+- [Fehler und Wünsche](#-fehler-und-wünsche)
 - [Support & Spenden](#-support--spenden)
-- [Technik und Lizenzen](#technik-und-lizenzen)
+- [Technik](#-technik)
+- [Lizenz](#-lizenz)
 
-## Funktionen
+## ✨ Was es kann
 
 - **Nulleinspeisung** auf einen einstellbaren Restbezug (ab Werk 25 W). Soyo und Huawei laufen **nie gleichzeitig**: Vor jedem Richtungswechsel stehen beide 5 s auf 0 W, Soyo wird erst freigegeben, wenn der Huawei unter 40 W aufnimmt – so kann sich nichts gegenseitig hochregeln.
 - **Nur Laden** mit fester Leistung (100–2000 W), Start nur mit 3 s Halten, Stopp sofort.
@@ -77,19 +94,21 @@ Alles ist eingebaut, aber an echter Hardware **noch nicht vollständig getestet*
 - **Shelly vor jedem Huawei (optional):** misst die Aufnahme und schaltet einen Huawei ab, wenn sein CAN abreißt.
 - **Deutsch und Englisch**, Design wie Simple Open Camper.
 
-## Teile
+## 🛒 Hardware
 
 | Teil | Wofür | Bezugsquelle |
 | --- | --- | --- |
 | ESP32-2432S028R („Cheap Yellow Display“, 2,8″) | Regler mit Display | [bei Amazon](https://link.amazon/B00jjmvuF) |
-| CAN-Transceiver SN65HVD230 (3,3 V) | Huawei-Netzteile | [bei Amazon](https://link.amazon/B02DRQBV8) |
-| RS485-Wandler mit automatischer Senderichtung | SoyoSource-Wechselrichter | [bei Amazon](https://link.amazon/B092okQsP) |
+| CAN-Transceiver SN65HVD230 (3,3 V) | Huawei-Netzteile | [bei Amazon](https://link.amazon/B0jdhyTsz) |
+| RS485-Wandler mit automatischer Senderichtung | SoyoSource-Wechselrichter | [bei Amazon](https://link.amazon/B0fboLu9j) |
 | Shelly-Energiezähler am Netzanschluss | Netzmessung | oder ein anderer Zähler per MQTT |
 | je Huawei ein Shelly mit Schalter und Messung (z. B. Plug, 1PM) | Abschalten bei CAN-Ausfall | optional |
 
+👉 **Bezugsquellen:** [ESP32-2432S028R bei Amazon](https://link.amazon/B00jjmvuF) · [CAN-Wandler SN65HVD230 bei Amazon](https://link.amazon/B0jdhyTsz) · [RS485-Wandler bei Amazon](https://link.amazon/B0fboLu9j)
+
 Wichtig: Für CAN einen **3,3-V-Transceiver** wie den SN65HVD230 nehmen, **kein MCP2515**-Modul – der CAN-Controller steckt schon im ESP32.
 
-## Anschluss
+## 🔌 Anschluss
 
 Jedes Modul bekommt seinen eigenen Stecker am CYD.
 
@@ -125,7 +144,7 @@ Jedes Modul bekommt seinen eigenen Stecker am CYD.
 
 **Folge der Belegung:** Soyo nutzt den USB-Seriell (UART0), daher gibt es keine seriellen Debug-Ausgaben. Fehlersuche läuft über die Weboberfläche. Hochladen über USB geht weiter. Beim Einschalten laufen kurz Bootmeldungen über den Soyo-Bus; die Soyos verwerfen sie (falsche Baudrate und Prüfsumme).
 
-## Firmware aufspielen
+## 🔧 Firmware aufspielen
 
 **⚡ [Online-Flasher](https://cyclemat.github.io/huawei-soyo-cyd/flasher/) (am einfachsten):** im Browser öffnen (Chrome oder Edge am PC), CYD per USB anschließen, Knopf drücken, Anschluss wählen – ohne Download und ohne Installation. **„Nur Firmware (Update)“** lässt die Einstellungen stehen, **„Komplett (neu einrichten)“** löscht alles. Den RS485-Wandler am Stecker P1 vorher abziehen, er hängt am selben seriellen Anschluss.
 
@@ -135,7 +154,7 @@ Jedes Modul bekommt seinen eigenen Stecker am CYD.
 
 **Selbst bauen:** PlatformIO, `pio run -e cyd -t upload`. Danach legt `python tools/release_local.py` die fertigen Dateien nach `release/` und aktualisiert den Online-Flasher.
 
-## Erster Start
+## 🚀 Erste Einrichtung
 
 1. Firmware aufspielen (siehe oben).
 2. Mit dem WLAN **HuaweiSoyo-XXXX** verbinden – Passwort ab Werk **`panelsat`**. Die Einstellungsseite öffnet sich am Handy von selbst (Captive Portal auf **4.3.2.1**), sonst `http://4.3.2.1` aufrufen.
@@ -154,7 +173,7 @@ Das Einrichtungs-WLAN erscheint auch, wenn das Heim-WLAN beim Start nicht erreic
 | 3-mal | Einrichtungs-WLAN sofort an (bis zum nächsten Neustart) |
 | 5-mal | Zugangs- und WLAN-Passwort wieder `panelsat`. Das Heim-WLAN bleibt gespeichert, damit ein flackerndes Netz die Regelung nicht lahmlegt. |
 
-## Bedienung am Display
+## 👆 Bedienung am Display
 
 | Seite | Inhalt |
 | --- | --- |
@@ -176,7 +195,7 @@ Die Kopfzeile zeigt den Modus und rechts den Zustand von MQTT, CAN und WLAN (gr�
 
 **Log auf microSD-Karte:** Steckt eine Karte (FAT32) im Slot des CYD, schreibt das Gerät alle 10 s eine Zeile (Modus, Netz, Soyo, Huawei, Restbezug) und alle Ereignisse (Start mit Grund, Moduswechsel, Messausfall, CAN weg, WLAN weg, „Laden gestoppt“ …) in `/logs/log-NNNNN.csv` – Semikolon-getrennt, direkt in Excel/LibreOffice lesbar, je Datei höchstens 1 MB. Sind weniger als 8 MB frei, werden die ältesten Dateien gelöscht. Die Uhrzeit kommt per Internet (NTP); ohne Internet steht nur die Laufzeit in Sekunden. Eine später eingesteckte Karte wird innerhalb von 30 s erkannt. Dateien lassen sich in der Weboberfläche unter *Log-Dateien* herunterladen.
 
-## Weboberfläche
+## 🌐 Weboberfläche
 
 Hell oder dunkel (je nach Gerät), Deutsch oder Englisch (oben rechts), geschützt durch das Zugangspasswort (5 Fehlversuche → 30 s Pause).
 
@@ -204,7 +223,7 @@ Hell oder dunkel (je nach Gerät), Deutsch oder Englisch (oben rechts), geschüt
 | R4875G1 | 75 A | 13,65 |
 | Eigener Faktor | – | selbst eintragen |
 
-## Mehrere Huawei-Netzteile
+## 🔋 Mehrere Huawei-Netzteile
 
 - **Adressen vergeben die Netzteile selbst:** Beim ersten Einschalten am gemeinsamen Bus einigen sie sich auf 1, 2, 3 und behalten sie danach. Am Gerät wird nichts eingestellt. Welches Gerät welche Adresse bekommt, hängt von der Einschaltreihenfolge ab.
 - In der Weboberfläche die **Anzahl** eintragen. Das CYD spricht die Adressen **1 bis Anzahl** an, gibt allen dieselbe Ladespannung und **teilt die Leistung gleichmäßig** auf (z. B. 1500 W bei drei Geräten = je 500 W).
@@ -212,7 +231,7 @@ Hell oder dunkel (je nach Gerät), Deutsch oder Englisch (oben rechts), geschüt
 - **Ein einzelnes Gerät** darf jede Adresse haben: Antwortet es z. B. als Adresse 2, übernimmt das CYD diese Adresse von selbst (Ereignis „Huawei meldet sich mit CAN-Adresse 2“) und spricht es fortan damit an.
 - **Bekannte Grenze bei mehreren Geräten:** Das CYD erwartet die Adressen lückenlos ab 1. Welche Adressen tatsächlich antworten, zeigt die Diagnoseseite unter „fremde ID“ (0x108**2**407F = Adresse 2).
 
-## Shelly vor dem Huawei (optional)
+## 🔀 Shelly vor dem Huawei (optional)
 
 Vor jeden Huawei kommt ein Shelly mit Schalter und Leistungsmessung (z. B. Shelly Plug, Plus Plug S, 1PM, Plus 1PM; Gen1 und Gen2/3, ohne Passwort). In der Weboberfläche unter **Huawei** die IP-Adresse je Netzteil eintragen: *Shelly vor Huawei 1* gehört zum Huawei mit CAN-Adresse 1 usw. **Bleiben die Felder leer, passiert nichts** – alles läuft wie ohne Shellys.
 
@@ -228,7 +247,7 @@ Nach dem Einschalten bekommt jeder Huawei 60 s Zeit zum Hochfahren. Der Zustand 
 
 Grenze: Fällt das **CYD selbst** aus, schaltet auch niemand die Shellys – dafür gilt weiter der Offline-Strom 0 A (siehe Sicherheit). Abgeschaltet wird auch, wenn der CAN schon seit dem Start fehlt.
 
-## MQTT und Home Assistant
+## 🏠 MQTT und Home Assistant
 
 **Netzmessung per MQTT** – Beispiele:
 
@@ -242,16 +261,16 @@ Unterstützt werden `$.a.b`, `a[0].b` und `$['em:0'].act_power`; Zahlen als Text
 
 **Werte für Home Assistant:** Mit eingetragenem Broker sendet das CYD alle 5 s ein JSON auf `<Präfix>/state` (ab Werk `huaweisoyo/state`), die Verfügbarkeit auf `<Präfix>/status`. Mit Discovery erscheint das Gerät **„Huawei Soyo Regler“** mit Netzleistung, Soyo-Sollwert und -Messung, Huawei-Sollwert, Lade- und Aufnahmeleistung, Restbezug, Modus und je Huawei Ausgangsspannung, Ladestrom, Netzspannung, Temperatur und Wirkungsgrad. Startet Home Assistant neu, sendet das CYD die Discovery erneut.
 
-## Sicherheit
+## 🔒 Sicherheit
 
 - **Netzmessung fehlt** (Shelly länger als 10 s, MQTT länger als das Zeitlimit): Soyo und Huawei gehen auf 0 W. Bis dahin hält die Regelung den letzten Wert, damit einzelne Aussetzer nichts abschalten.
 - **Huawei-CAN fehlt:** Laden stoppt; Soyo darf weiter einspeisen. Ohne angeschlossenes CAN-Modul läuft alles andere normal weiter.
 - **CYD fällt aus oder CAN-Kabel ab:** Ist *Ohne CAN-Signal → weiterladen* **aus** (ab Werk), schreibt das CYD dem Huawei beim ersten Kontakt den Offline-Strom **0 A** in seinen Speicher; nach Verbindungsverlust soll er damit aufhören zu laden. **Noch nicht am Gerät getestet** – beim ersten Aufbau mit kleiner Leistung laden, CAN abziehen und mit Stromzange prüfen, ob und wann der Huawei aufhört. Ein Huawei, der noch nie mit dem CYD verbunden war, hat noch seine Werksvorgabe.
-- **Zweite Sicherung per Shelly (optional):** Reißt nur der CAN ab und das CYD läuft weiter, schaltet es den betroffenen Huawei per Shelly ab (siehe [Shelly vor dem Huawei](#shelly-vor-dem-huawei-optional)). *(Beta)*
+- **Zweite Sicherung per Shelly (optional):** Reißt nur der CAN ab und das CYD läuft weiter, schaltet es den betroffenen Huawei per Shelly ab (siehe [Shelly vor dem Huawei](#-shelly-vor-dem-huawei-optional)). *(Beta)*
 - Der Akku muss in jedem Fall durch sein **BMS** gegen Über- und Tiefentladung geschützt sein.
 - Soyo-Istmessung nur per Shelly. Steuern aus Home Assistant ist noch nicht eingebaut.
 
-## Fehlersuche
+## 🆘 Fehlersuche
 
 | Anzeige | Ursache und Abhilfe |
 | --- | --- |
@@ -264,17 +283,25 @@ Unterstützt werden `$.a.b`, `a[0].b` und `$['em:0'].act_power`; Zahlen als Text
 | Soyo speist nicht ein | A und B tauschen, Limiter-Modus an den Soyos prüfen, RX am P1 nicht angeschlossen? |
 | Netzbezug wird negativ angezeigt | *Vorzeichen umkehren* einschalten |
 
+## 📝 Änderungen
+
+Was sich von Version zu Version geändert hat: **[CHANGELOG.md](CHANGELOG.md)**
+
+## 🔗 Fehler und Wünsche
+
+Bitte hier als [Issue](../../issues) melden.
+
+**Bericht für die Fehlermeldung:** In der Weboberfläche unter **Gerät → Diagnose** bei CAN-Problemen „Mitschnitt starten“ drücken, 10 s warten, dann **„Bericht herunterladen“** und die Textdatei an das Issue hängen. Sie enthält keine Passwörter. Mit microSD-Karte im CYD (Ordner `logs`) bleibt das Log auch über einen Neustart hinweg erhalten.
+
 ## ❤ Support & Spenden
 
 Das Projekt entsteht in der Freizeit. Wenn es dir hilft, freue ich mich über einen Kaffee:
 
 **[☕ PayPal – CycleMat unterstützen](https://paypal.me/cyclemat)**
 
-Kein Druck, keine Werbung, keine Bezahlschranke – einfach Open Source mit Leidenschaft ❤
+Kein Druck, keine Werbung, keine Bezahlschranke ❤
 
-## Technik und Lizenzen
-
-**Lizenz:** [PolyForm Noncommercial 1.0.0](LICENSE). Jeder darf die Firmware privat und nicht-kommerziell nutzen, ändern und weitergeben. **Kommerzielle Nutzung – auch der Verkauf von Geräten mit dieser Firmware – nur mit schriftlicher Erlaubnis des Urhebers** (Anfrage per GitHub-Issue). Die fremden Bestandteile behalten ihre eigenen Lizenzen, siehe [THIRD_PARTY.md](THIRD_PARTY.md).
+## 🧩 Technik
 
 PlatformIO, Arduino-ESP32 2.0.17, LVGL 8.4, LovyanGFX (Display und Touch wie Simple Open Camper), PubSubClient. Partition `huge_app.csv` (ohne OTA).
 
@@ -291,3 +318,7 @@ PlatformIO, Arduino-ESP32 2.0.17, LVGL 8.4, LovyanGFX (Display und Touch wie Sim
 | `tools/embed_splash.py` | Startbild (`assets/splash_cyd.jpg`) beim Bauen einbetten |
 
 Protokollwissen aus [mjpalmowski/CAN-BUS-control-R4875G1](https://github.com/mjpalmowski/CAN-BUS-control-R4875G1-with-ESPHome-and-MQTT) (MIT), [craigpeacock/Huawei_R4850G2_CAN](https://github.com/craigpeacock/Huawei_R4850G2_CAN) (GPL-3.0, nur Protokollwissen, eigene Umsetzung) und [matlen67/soyosource-powercontroller](https://github.com/matlen67/soyosource-powercontroller) (nur Protokollwissen). Fremde Bestandteile: [THIRD_PARTY.md](THIRD_PARTY.md) · Änderungen: [CHANGELOG.md](CHANGELOG.md)
+
+## 📄 Lizenz
+
+[PolyForm Noncommercial 1.0.0](LICENSE) – jeder darf die Firmware nicht-kommerziell nutzen, ändern und weitergeben; kommerzielle Lizenzen (Verkauf der Firmware oder von Geräten damit, gewerblicher Einbau) vergibt nur der Urheber. Die fremden Bestandteile stehen unter eigenen Lizenzen (siehe [THIRD_PARTY.md](THIRD_PARTY.md)). Huawei ist eine Marke der Huawei Technologies Co., Ltd., SoyoSource eine Marke ihres Herstellers, Shelly eine Marke der Shelly Group; dieses Projekt ist kein offizielles Produkt dieser Firmen und steht in keiner Verbindung zu ihnen.
